@@ -99,6 +99,9 @@ public abstract class MapPool implements MapOrder, Comparable<MapPool> {
   @Override
   public void setNextMap(MapInfo map) {}
 
+  @Override
+  public void resetNextMap() {}
+
   /**
    * Called when this map pool is going to be switched out
    *
@@ -108,6 +111,12 @@ public abstract class MapPool implements MapOrder, Comparable<MapPool> {
 
   @Override
   public int compareTo(MapPool o) {
-    return Integer.compare(players, o.players);
+    if (!o.isDynamic()) {
+      return -1;
+    } else if (!isDynamic()) {
+      return 1;
+    } else {
+      return Integer.compare(players, o.players);
+    }
   }
 }

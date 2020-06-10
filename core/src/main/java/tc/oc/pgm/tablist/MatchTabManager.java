@@ -1,7 +1,5 @@
 package tc.oc.pgm.tablist;
 
-import static com.google.common.base.Preconditions.checkNotNull;
-
 import java.util.Map;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -13,7 +11,6 @@ import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.plugin.Plugin;
-import tc.oc.pgm.Config;
 import tc.oc.pgm.api.PGM;
 import tc.oc.pgm.api.map.Contributor;
 import tc.oc.pgm.api.match.Match;
@@ -22,6 +19,7 @@ import tc.oc.pgm.api.match.event.MatchUnloadEvent;
 import tc.oc.pgm.api.party.event.PartyRenameEvent;
 import tc.oc.pgm.api.player.MatchPlayer;
 import tc.oc.pgm.api.player.event.MatchPlayerDeathEvent;
+import tc.oc.pgm.community.events.PlayerVanishEvent;
 import tc.oc.pgm.events.PlayerJoinMatchEvent;
 import tc.oc.pgm.events.PlayerPartyChangeEvent;
 import tc.oc.pgm.ffa.Tribute;
@@ -46,11 +44,9 @@ public class MatchTabManager extends TabManager implements Listener {
       new DefaultMapAdapter<>(FreeForAllTabEntry::new, true);
 
   private Future<?> renderTask;
-  private PlayerOrderFactory playerOrderFactory;
 
   public MatchTabManager(Plugin plugin) {
     super(plugin, new MatchTabView.Factory(), null);
-    playerOrderFactory = PlayerOrder::new;
   }
 
   public void disable() {
@@ -75,16 +71,8 @@ public class MatchTabManager extends TabManager implements Listener {
               MatchTabManager.this.render();
             }
           };
-      this.renderTask =
-          PGM.get()
-              .getExecutor()
-              .schedule(render, Config.Experiments.get().getTabRenderSeconds(), TimeUnit.SECONDS);
+      this.renderTask = PGM.get().getExecutor().schedule(render, 1, TimeUnit.SECONDS);
     }
-  }
-
-  @Override
-  public @Nullable TabView getViewOrNull(Player viewer) {
-    return (TabView) super.getViewOrNull(viewer);
   }
 
   @Override
@@ -125,14 +113,6 @@ public class MatchTabManager extends TabManager implements Listener {
         break;
       }
     }
-  }
-
-  protected PlayerOrderFactory getPlayerOrderFactory() {
-    return playerOrderFactory;
-  }
-
-  public void setPlayerOrderFactory(PlayerOrderFactory factory) {
-    this.playerOrderFactory = checkNotNull(factory);
   }
 
   @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -208,5 +188,12 @@ public class MatchTabManager extends TabManager implements Listener {
   @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
   public void onSpawn(ParticipantSpawnEvent event) {
     invalidate(event.getPlayer());
+  }
+
+  @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+  public void onVanish(PlayerVanishEvent event) {
+    PlayerTabEntry entry = getPlayerEntry(event.getPlayer());
+    entry.invalidate();
+    entry.refresh();
   }
 }

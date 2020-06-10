@@ -2,9 +2,15 @@ package tc.oc.pgm.listeners;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
+import java.util.Collection;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Collectors;
+import net.kyori.text.Component;
+import net.kyori.text.TextComponent;
+import net.kyori.text.TranslatableComponent;
+import net.kyori.text.format.TextColor;
 import net.md_5.bungee.api.ChatColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -30,7 +36,6 @@ import org.bukkit.event.vehicle.VehicleUpdateEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.util.Vector;
-import tc.oc.pgm.Config;
 import tc.oc.pgm.api.PGM;
 import tc.oc.pgm.api.Permissions;
 import tc.oc.pgm.api.event.BlockTransformEvent;
@@ -41,32 +46,34 @@ import tc.oc.pgm.api.match.event.MatchLoadEvent;
 import tc.oc.pgm.api.match.event.MatchStartEvent;
 import tc.oc.pgm.api.party.Competitor;
 import tc.oc.pgm.api.player.MatchPlayer;
+import tc.oc.pgm.api.player.VanishManager;
 import tc.oc.pgm.api.setting.SettingKey;
 import tc.oc.pgm.api.setting.SettingValue;
 import tc.oc.pgm.commands.MatchCommands;
 import tc.oc.pgm.events.MapPoolAdjustEvent;
 import tc.oc.pgm.events.PlayerParticipationStopEvent;
 import tc.oc.pgm.events.PlayerPartyChangeEvent;
-import tc.oc.pgm.gamerules.GameRule;
 import tc.oc.pgm.gamerules.GameRulesMatchModule;
 import tc.oc.pgm.modules.TimeLockModule;
 import tc.oc.pgm.util.UsernameFormatUtils;
-import tc.oc.pgm.util.component.Component;
+import tc.oc.pgm.util.component.ComponentRenderers;
 import tc.oc.pgm.util.component.PeriodFormats;
-import tc.oc.pgm.util.component.types.PersonalizedText;
-import tc.oc.pgm.util.component.types.PersonalizedTranslatable;
-import tc.oc.pgm.util.translations.AllTranslations;
+import tc.oc.pgm.util.text.TextTranslations;
 
 public class PGMListener implements Listener {
+  private static final String DO_DAYLIGHT_CYCLE = "doDaylightCycle";
+
   private final Plugin parent;
   private final MatchManager mm;
+  private final VanishManager vm;
 
   // Single-write, multi-read lock used to create the first match
   private final ReentrantReadWriteLock lock;
 
-  public PGMListener(Plugin parent, MatchManager mm) {
+  public PGMListener(Plugin parent, MatchManager mm, VanishManager vm) {
     this.parent = parent;
     this.mm = mm;
+    this.vm = vm;
     this.lock = new ReentrantReadWriteLock();
   }
 
@@ -86,7 +93,7 @@ public class PGMListener implements Listener {
       try {
         mm.createMatch(null).get();
       } catch (InterruptedException | ExecutionException e) {
-        // No-op
+        e.printStackTrace();
       } finally {
         lock.writeLock().unlock();
       }
@@ -96,7 +103,7 @@ public class PGMListener implements Listener {
     try {
       lock.readLock().tryLock(15, TimeUnit.SECONDS);
     } catch (InterruptedException e) {
-      // No-op
+      e.printStackTrace();
     } finally {
       lock.readLock().unlock();
     }
@@ -104,7 +111,7 @@ public class PGMListener implements Listener {
     if (!mm.getMatches().hasNext()) {
       event.disallow(
           AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
-          AllTranslations.get().translate("incorrectWorld.kickMessage", null));
+          TextTranslations.translate("misc.incorrectWorld", null));
     }
   }
 
@@ -115,7 +122,7 @@ public class PGMListener implements Listener {
       if (event.getPlayer().hasPermission(Permissions.JOIN_FULL)) {
         event.allow();
       } else {
-        event.setKickMessage(AllTranslations.get().translate("serverFull", event.getPlayer()));
+        event.setKickMessage(TextTranslations.translate("misc.serverFull", event.getPlayer()));
       }
     }
   }
@@ -126,9 +133,7 @@ public class PGMListener implements Listener {
       event
           .getPlayer()
           .kickPlayer(
-              ChatColor.RED
-                  + AllTranslations.get()
-                      .translate("incorrectWorld.kickMessage", event.getPlayer()));
+              ChatColor.RED + TextTranslations.translate("misc.incorrectWorld", event.getPlayer()));
       this.parent
           .getLogger()
           .info(
@@ -151,7 +156,12 @@ public class PGMListener implements Listener {
       event.setJoinMessage(null);
       MatchPlayer player = match.getPlayer(event.getPlayer());
       if (player != null) {
-        announceJoinOrLeave(player, "broadcast.joinMessage");
+        if (!vm.isVanished(player.getId())) {
+          announceJoinOrLeave(player, true, false);
+        } else {
+          // Announce actual staff join
+          announceJoinOrLeave(player, true, true);
+        }
       }
     }
   }
@@ -164,7 +174,12 @@ public class PGMListener implements Listener {
     if (event.getQuitMessage() != null) {
       MatchPlayer player = match.getPlayer(event.getPlayer());
       if (player != null) {
-        announceJoinOrLeave(player, "broadcast.leaveMessage");
+        if (!vm.isVanished(player.getId())) {
+          announceJoinOrLeave(player, false, false);
+        } else {
+          // Announce actual staff quit
+          announceJoinOrLeave(player, false, true);
+        }
       }
       event.setQuitMessage(null);
     }
@@ -173,18 +188,31 @@ public class PGMListener implements Listener {
     PGM.get().getPrefixRegistry().removePlayer(event.getPlayer().getUniqueId());
   }
 
-  private void announceJoinOrLeave(MatchPlayer player, String messageKey) {
+  public static void announceJoinOrLeave(MatchPlayer player, boolean join, boolean staffOnly) {
     checkNotNull(player);
-    checkNotNull(messageKey);
+    Collection<MatchPlayer> viewers =
+        player.getMatch().getPlayers().stream()
+            .filter(p -> (staffOnly ? p.getBukkit().hasPermission(Permissions.STAFF) : true))
+            .collect(Collectors.toList());
 
-    for (MatchPlayer viewer : player.getMatch().getPlayers()) {
+    for (MatchPlayer viewer : viewers) {
       if (player.equals(viewer)) continue;
+      if (!staffOnly && player.isVanished() && viewer.getBukkit().hasPermission(Permissions.STAFF))
+        continue; // Skip staff during fake broadcast
+
+      final String key =
+          (join ? "misc.join" : "misc.leave") + (staffOnly && player.isVanished() ? ".quiet" : "");
 
       SettingValue option = viewer.getSettings().getValue(SettingKey.JOIN);
       if (option.equals(SettingValue.JOIN_ON)) {
-        String name = player.getBukkit().getDisplayName(viewer.getBukkit()) + ChatColor.YELLOW;
-        Component component = new PersonalizedTranslatable(messageKey, name);
-        viewer.sendMessage(new PersonalizedText(component, ChatColor.YELLOW));
+        Component name =
+            TextComponent.of(
+                player.getBukkit().getDisplayName(viewer.getBukkit()) + ChatColor.YELLOW);
+        Component component = TranslatableComponent.of(key).args(name);
+        viewer.sendMessage(
+            staffOnly
+                ? ChatDispatcher.ADMIN_CHAT_PREFIX.append(component.color(TextColor.YELLOW))
+                : component.color(TextColor.YELLOW));
       }
     }
   }
@@ -245,10 +273,7 @@ public class PGMListener implements Listener {
   //
   @EventHandler
   public void lockTime(final MatchLoadEvent event) {
-    event
-        .getMatch()
-        .getWorld()
-        .setGameRuleValue(GameRule.DO_DAYLIGHT_CYCLE.getValue(), Boolean.toString(false));
+    event.getMatch().getWorld().setGameRuleValue(DO_DAYLIGHT_CYCLE, Boolean.toString(false));
   }
 
   @EventHandler
@@ -259,23 +284,16 @@ public class PGMListener implements Listener {
     }
 
     GameRulesMatchModule gameRulesModule = event.getMatch().getModule(GameRulesMatchModule.class);
-    if (gameRulesModule != null
-        && gameRulesModule.getGameRules().containsKey(GameRule.DO_DAYLIGHT_CYCLE)) {
-      unlockTime = gameRulesModule.getGameRules().get(GameRule.DO_DAYLIGHT_CYCLE);
+    if (gameRulesModule != null && gameRulesModule.getGameRules().containsKey(DO_DAYLIGHT_CYCLE)) {
+      unlockTime = Boolean.parseBoolean(gameRulesModule.getGameRules().get(DO_DAYLIGHT_CYCLE));
     }
 
-    event
-        .getMatch()
-        .getWorld()
-        .setGameRuleValue(GameRule.DO_DAYLIGHT_CYCLE.getValue(), Boolean.toString(unlockTime));
+    event.getMatch().getWorld().setGameRuleValue(DO_DAYLIGHT_CYCLE, Boolean.toString(unlockTime));
   }
 
   @EventHandler
   public void lockTime(final MatchFinishEvent event) {
-    event
-        .getMatch()
-        .getWorld()
-        .setGameRuleValue(GameRule.DO_DAYLIGHT_CYCLE.getValue(), Boolean.toString(false));
+    event.getMatch().getWorld().setGameRuleValue(DO_DAYLIGHT_CYCLE, Boolean.toString(false));
   }
 
   @EventHandler
@@ -296,7 +314,7 @@ public class PGMListener implements Listener {
 
   @EventHandler
   public void nerfFishing(PlayerFishEvent event) {
-    if (Config.Fishing.disableTreasure() && event.getCaught() instanceof Item) {
+    if (event.getCaught() instanceof Item) {
       Item caught = (Item) event.getCaught();
       if (caught.getItemStack().getType() != Material.RAW_FISH) {
         caught.setItemStack(new ItemStack(Material.RAW_FISH));
@@ -324,20 +342,20 @@ public class PGMListener implements Listener {
   public void announceDynamicMapPoolChange(MapPoolAdjustEvent event) {
     // Send feedback to staff, alerting them that the map pool has changed by force
     if (event.isForced()) {
-      Component poolName =
-          new PersonalizedText(event.getNewPool().getName()).color(ChatColor.LIGHT_PURPLE);
+      Component poolName = TextComponent.of(event.getNewPool().getName(), TextColor.LIGHT_PURPLE);
       Component staffName =
           UsernameFormatUtils.formatStaffName(event.getSender(), event.getMatch());
-      PersonalizedTranslatable forced =
-          new PersonalizedTranslatable("pools.poolChange.force", poolName, staffName);
+      Component forced = TranslatableComponent.of("pool.change.force").args(poolName, staffName);
       if (event.getTimeLimit() != null) {
         Component time =
-            PeriodFormats.briefNaturalApproximate(event.getTimeLimit()).color(ChatColor.GREEN);
-        forced =
-            new PersonalizedTranslatable("pools.poolChange.force.timed", poolName, time, staffName);
+            TextComponent.of(
+                ComponentRenderers.toLegacyText(
+                    PeriodFormats.briefNaturalApproximate(event.getTimeLimit())
+                        .color(ChatColor.GREEN),
+                    Bukkit.getConsoleSender()));
+        forced = TranslatableComponent.of("pool.change.forceTimed").args(poolName, time, staffName);
       }
-      ChatDispatcher.broadcastAdminChatMessage(
-          forced.getPersonalizedText().color(ChatColor.GRAY), event.getMatch());
+      ChatDispatcher.broadcastAdminChatMessage(forced.color(TextColor.GRAY), event.getMatch());
     }
 
     // Broadcast map pool changes due to size
@@ -352,11 +370,10 @@ public class PGMListener implements Listener {
                   + ChatColor.WHITE
                   + "] "
                   + ChatColor.GREEN
-                  + AllTranslations.get()
-                      .translate(
-                          "pools.poolChange",
-                          Bukkit.getConsoleSender(),
-                          (ChatColor.AQUA + event.getNewPool().getName() + ChatColor.GREEN)));
+                  + TextTranslations.translate(
+                      "pool.change",
+                      Bukkit.getConsoleSender(),
+                      (ChatColor.AQUA + event.getNewPool().getName() + ChatColor.GREEN)));
     }
   }
 }

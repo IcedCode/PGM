@@ -8,15 +8,17 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.HandlerList;
-import tc.oc.pgm.Config;
+import tc.oc.pgm.api.PGM;
 import tc.oc.pgm.api.Permissions;
 import tc.oc.pgm.api.match.Match;
 import tc.oc.pgm.api.player.MatchPlayer;
+import tc.oc.pgm.community.events.PlayerVanishEvent;
 import tc.oc.pgm.events.PlayerJoinMatchEvent;
 import tc.oc.pgm.events.PlayerPartyChangeEvent;
 import tc.oc.pgm.match.ObservingParty;
@@ -24,7 +26,6 @@ import tc.oc.pgm.teams.Team;
 import tc.oc.pgm.teams.TeamMatchModule;
 import tc.oc.pgm.util.bukkit.ViaUtils;
 import tc.oc.pgm.util.tablist.TabEntry;
-import tc.oc.pgm.util.tablist.TabManager;
 import tc.oc.pgm.util.tablist.TabView;
 
 public class MatchTabView extends TabView implements ListeningTabView {
@@ -49,19 +50,15 @@ public class MatchTabView extends TabView implements ListeningTabView {
   private TeamOrder teamOrder;
 
   public MatchTabView(Player viewer) {
-    super(viewer);
+    super(viewer); // All fields must be reset in PlayerJoinMatchEvent to prevent leaks
   }
 
-  @Override
-  public void enable(TabManager manager) {
-    if (manager instanceof MatchTabManager) {
-      this.playerOrder =
-          ((MatchTabManager) manager).getPlayerOrderFactory().getOrder(this.matchPlayer);
-    } else if (playerOrder == null) {
-      this.playerOrder = new PlayerOrder(this.matchPlayer);
-    }
+  private void addObserver(MatchPlayer observer) {
+    observerPlayers.add(observer);
+  }
 
-    super.enable(manager);
+  private void removeObserver(MatchPlayer player) {
+    this.observerPlayers.remove(player);
   }
 
   @Override
@@ -124,10 +121,12 @@ public class MatchTabView extends TabView implements ListeningTabView {
       // Number of players/staff on observers
       int observingPlayers = 0;
       int observingStaff = 0;
-      if (Config.PlayerList.playersSeeObservers() || matchPlayer.isObserving()) {
-        observingPlayers = observers.size();
+      if (PGM.get().getConfiguration().canParticipantsSeeObservers() || matchPlayer.isObserving()) {
+        observingPlayers =
+            Math.toIntExact(observers.stream().filter(o -> isVisible(o, matchPlayer)).count());
         for (MatchPlayer player : observers) {
-          if (player.getBukkit().hasPermission(Permissions.STAFF)) observingStaff++;
+          if (player.getBukkit().hasPermission(Permissions.STAFF)
+              && !isVisible(player, matchPlayer)) observingStaff++;
         }
       }
 
@@ -146,7 +145,6 @@ public class MatchTabView extends TabView implements ListeningTabView {
 
         int columnsPerTeam =
             Math.max(1, this.getWidth() / Math.max(1, tmm.getParticipatingTeams().size()));
-        ;
 
         // Minimum rows required by teams (when they are distributed evenly across columns),
         // including the header row
@@ -217,9 +215,15 @@ public class MatchTabView extends TabView implements ListeningTabView {
           this.setSlot(x, this.getHeight() - observerRows, null);
         }
 
+        final List<MatchPlayer> obs =
+            observerPlayers.stream()
+                .filter(mp -> isVisible(mp, matchPlayer))
+                .collect(Collectors.toList());
+        Collections.sort(obs, playerOrder);
+
         // Render observers
         this.renderTeam(
-            observerPlayers,
+            obs,
             null,
             false,
             0,
@@ -238,10 +242,11 @@ public class MatchTabView extends TabView implements ListeningTabView {
       this.match = event.getMatch();
       this.matchPlayer = event.getPlayer();
 
+      this.playerOrder = new PlayerOrder(this.matchPlayer);
       this.teamOrder = new TeamOrder(this.matchPlayer);
 
       this.observerPlayers.clear();
-      this.observerPlayers.addAll(this.match.getObservers());
+      this.match.getObservers().forEach(this::addObserver);
       this.participantPlayers.clear();
       this.participantPlayers.addAll(this.match.getParticipants());
 
@@ -263,13 +268,13 @@ public class MatchTabView extends TabView implements ListeningTabView {
 
     if (event.getOldParty() != null) {
       this.participantPlayers.remove(event.getPlayer());
-      this.observerPlayers.remove(event.getPlayer());
+      removeObserver(event.getPlayer());
     }
 
     if (event.getNewParty() != null) {
       if (event.getNewParty() instanceof ObservingParty) {
         if (!this.observerPlayers.contains(event.getPlayer())) {
-          this.observerPlayers.add(event.getPlayer());
+          addObserver(event.getPlayer());
         }
       } else {
         if (!this.participantPlayers.contains(event.getPlayer())) {
@@ -290,6 +295,20 @@ public class MatchTabView extends TabView implements ListeningTabView {
     }
 
     this.invalidateLayout();
+  }
+
+  @EventHandler(priority = EventPriority.MONITOR)
+  public void onPlayerVanish(PlayerVanishEvent event) {
+    this.invalidateLayout();
+  }
+
+  private boolean isVanished(MatchPlayer player) {
+    return PGM.get().getVanishManager().isVanished(player.getId());
+  }
+
+  private boolean isVisible(MatchPlayer target, MatchPlayer viewer) {
+    if (viewer.getBukkit().hasPermission(Permissions.STAFF)) return true;
+    return !isVanished(target);
   }
 
   private static int divideRoundingUp(int numerator, int denominator) {

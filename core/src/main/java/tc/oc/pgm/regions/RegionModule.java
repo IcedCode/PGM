@@ -14,6 +14,7 @@ import tc.oc.pgm.api.match.MatchModule;
 import tc.oc.pgm.filters.FilterModule;
 import tc.oc.pgm.kits.KitModule;
 import tc.oc.pgm.util.xml.InvalidXMLException;
+import tc.oc.pgm.util.xml.XMLUtils;
 
 public class RegionModule implements MapModule {
   protected final RFAContext rfaContext;
@@ -69,6 +70,19 @@ public class RegionModule implements MapModule {
           }
         }
       }
+
+      // Support deprecated <lanes> syntax
+      for (Element laneEl : XMLUtils.flattenElements(doc.getRootElement(), "lanes", "lane")) {
+        rfaParser.parseLane(laneEl);
+      }
+
+      // Support deprecated <playable> syntax
+      Element playableEl = XMLUtils.getUniqueChild(doc.getRootElement(), "playable");
+      if (playableEl != null) rfaParser.parsePlayable(playableEl);
+
+      // Support deprecated <maxbuildheight> syntax
+      Element heightEl = XMLUtils.getUniqueChild(doc.getRootElement(), "maxbuildheight");
+      if (heightEl != null) rfaParser.parseMaxBuildHeight(heightEl);
 
       return new RegionModule(rfaContext);
     }

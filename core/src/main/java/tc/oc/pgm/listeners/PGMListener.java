@@ -12,7 +12,6 @@ import net.kyori.text.TextComponent;
 import net.kyori.text.TranslatableComponent;
 import net.kyori.text.format.TextColor;
 import net.md_5.bungee.api.ChatColor;
-import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.Server;
 import org.bukkit.entity.EnderPearl;
@@ -44,20 +43,16 @@ import tc.oc.pgm.api.match.MatchManager;
 import tc.oc.pgm.api.match.event.MatchFinishEvent;
 import tc.oc.pgm.api.match.event.MatchLoadEvent;
 import tc.oc.pgm.api.match.event.MatchStartEvent;
-import tc.oc.pgm.api.party.Competitor;
 import tc.oc.pgm.api.player.MatchPlayer;
 import tc.oc.pgm.api.player.VanishManager;
 import tc.oc.pgm.api.setting.SettingKey;
 import tc.oc.pgm.api.setting.SettingValue;
-import tc.oc.pgm.commands.MatchCommands;
 import tc.oc.pgm.events.MapPoolAdjustEvent;
 import tc.oc.pgm.events.PlayerParticipationStopEvent;
-import tc.oc.pgm.events.PlayerPartyChangeEvent;
 import tc.oc.pgm.gamerules.GameRulesMatchModule;
 import tc.oc.pgm.modules.TimeLockModule;
 import tc.oc.pgm.util.UsernameFormatUtils;
-import tc.oc.pgm.util.component.ComponentRenderers;
-import tc.oc.pgm.util.component.PeriodFormats;
+import tc.oc.pgm.util.text.PeriodFormats;
 import tc.oc.pgm.util.text.TextTranslations;
 
 public class PGMListener implements Listener {
@@ -189,6 +184,11 @@ public class PGMListener implements Listener {
   }
 
   public static void announceJoinOrLeave(MatchPlayer player, boolean join, boolean staffOnly) {
+    announceJoinOrLeave(player, join, staffOnly, false);
+  }
+
+  public static void announceJoinOrLeave(
+      MatchPlayer player, boolean join, boolean staffOnly, boolean force) {
     checkNotNull(player);
     Collection<MatchPlayer> viewers =
         player.getMatch().getPlayers().stream()
@@ -201,26 +201,20 @@ public class PGMListener implements Listener {
         continue; // Skip staff during fake broadcast
 
       final String key =
-          (join ? "misc.join" : "misc.leave") + (staffOnly && player.isVanished() ? ".quiet" : "");
+          (join ? "misc.join" : "misc.leave")
+              + (staffOnly && (player.isVanished() || force) ? ".quiet" : "");
 
       SettingValue option = viewer.getSettings().getValue(SettingKey.JOIN);
       if (option.equals(SettingValue.JOIN_ON)) {
         Component name =
             TextComponent.of(
                 player.getBukkit().getDisplayName(viewer.getBukkit()) + ChatColor.YELLOW);
-        Component component = TranslatableComponent.of(key).args(name);
+        Component component = TranslatableComponent.of(key, name);
         viewer.sendMessage(
             staffOnly
                 ? ChatDispatcher.ADMIN_CHAT_PREFIX.append(component.color(TextColor.YELLOW))
                 : component.color(TextColor.YELLOW));
       }
-    }
-  }
-
-  @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-  public void matchInfoOnParticipate(final PlayerPartyChangeEvent event) {
-    if (event.getNewParty() instanceof Competitor) {
-      MatchCommands.matchInfo(event.getPlayer().getBukkit(), event.getPlayer(), event.getMatch());
     }
   }
 
@@ -299,15 +293,13 @@ public class PGMListener implements Listener {
   @EventHandler
   public void freezeWorld(final BlockTransformEvent event) {
     Match match = this.mm.getMatch(event.getWorld());
-    if (match != null && match.isFinished()) {
-      event.setCancelled(true);
-    }
+    if (match == null || match.isFinished()) event.setCancelled(true);
   }
 
   @EventHandler
   public void freezeVehicle(final VehicleUpdateEvent event) {
     Match match = this.mm.getMatch(event.getWorld());
-    if (match != null && match.isFinished()) {
+    if (match == null || match.isFinished()) {
       event.getVehicle().setVelocity(new Vector());
     }
   }
@@ -345,35 +337,55 @@ public class PGMListener implements Listener {
       Component poolName = TextComponent.of(event.getNewPool().getName(), TextColor.LIGHT_PURPLE);
       Component staffName =
           UsernameFormatUtils.formatStaffName(event.getSender(), event.getMatch());
-      Component forced = TranslatableComponent.of("pool.change.force").args(poolName, staffName);
+      Component matchLimit =
+          TextComponent.builder()
+              .append(Integer.toString(event.getMatchLimit()), TextColor.GREEN)
+              .append(" ")
+              .append(
+                  TranslatableComponent.of(
+                      "match.name" + (event.getMatchLimit() != 1 ? ".plural" : ""), TextColor.GRAY))
+              .build();
+
+      // No limit
+      Component forced = TranslatableComponent.of("pool.change.force", poolName, staffName);
       if (event.getTimeLimit() != null) {
         Component time =
-            TextComponent.of(
-                ComponentRenderers.toLegacyText(
-                    PeriodFormats.briefNaturalApproximate(event.getTimeLimit())
-                        .color(ChatColor.GREEN),
-                    Bukkit.getConsoleSender()));
-        forced = TranslatableComponent.of("pool.change.forceTimed").args(poolName, time, staffName);
+            PeriodFormats.briefNaturalApproximate(event.getTimeLimit()).color(TextColor.GREEN);
+
+        // If time & match limit are present, display both
+        if (event.getMatchLimit() != 0) {
+          Component timeAndLimit =
+              TranslatableComponent.of("misc.or", TextColor.GRAY, time, matchLimit);
+          forced =
+              TranslatableComponent.of("pool.change.forceTimed", poolName, timeAndLimit, staffName);
+        } else {
+          // Just time limit
+          forced = TranslatableComponent.of("pool.change.forceTimed", poolName, time, staffName);
+        }
+      } else if (event.getMatchLimit() != 0) {
+        // Just match limit
+        forced =
+            TranslatableComponent.of("pool.change.forceTimed", poolName, matchLimit, staffName);
       }
+
       ChatDispatcher.broadcastAdminChatMessage(forced.color(TextColor.GRAY), event.getMatch());
     }
 
     // Broadcast map pool changes due to size
     if (event.getNewPool().isDynamic()) {
-      event
-          .getMatch()
-          .sendMessage(
-              ChatColor.WHITE
-                  + "["
-                  + ChatColor.GOLD
-                  + "Rotations"
-                  + ChatColor.WHITE
-                  + "] "
-                  + ChatColor.GREEN
-                  + TextTranslations.translate(
+      Component broadcast =
+          TextComponent.builder()
+              .append("[", TextColor.WHITE)
+              .append(TranslatableComponent.of("pool.name", TextColor.GOLD))
+              .append("] ", TextColor.WHITE)
+              .append(
+                  TranslatableComponent.of(
                       "pool.change",
-                      Bukkit.getConsoleSender(),
-                      (ChatColor.AQUA + event.getNewPool().getName() + ChatColor.GREEN)));
+                      TextColor.GREEN,
+                      TextComponent.of(event.getNewPool().getName(), TextColor.AQUA)))
+              .build();
+
+      event.getMatch().sendMessage(broadcast);
     }
   }
 }

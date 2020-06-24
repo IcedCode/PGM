@@ -55,7 +55,7 @@ public class MatchFactoryImpl implements MatchFactory, Callable<Match> {
       // Match creation was cancelled, no need to show an error
       if (e.getCause() instanceof InterruptedException) throw e;
 
-      final Throwable err = e.getCause();
+      Throwable err = e.getCause();
       PGM.get().getGameLogger().log(Level.SEVERE, err.getMessage(), err.getCause());
       throw e;
     }

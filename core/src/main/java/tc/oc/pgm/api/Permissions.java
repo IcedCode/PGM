@@ -23,6 +23,7 @@ public interface Permissions {
   String RESIZE = ROOT + ".resize"; // Resize the number of players per match
   String JOIN = ROOT + ".join"; // Allowed to join a match as a participant
   String JOIN_CHOOSE = JOIN + ".choose"; // Can choose which team to join
+  String EXTRA_VOTE = JOIN + ".extravote"; // Extra map voting power
   String JOIN_FULL = ROOT + ".full"; // Can join a team or server if it is full
   String JOIN_FORCE = JOIN + ".force"; // Can force other players onto teams
   String LEAVE = ROOT + ".leave"; // Can join observers willingly
@@ -36,6 +37,8 @@ public interface Permissions {
   String BAN = ROOT + ".ban"; // Access to the /ban command
   String FREEZE = ROOT + ".freeze"; // Access to the /freeze command
   String VANISH = ROOT + ".vanish"; // Access to /vanish command
+
+  String MAPMAKER = GROUP + ".mapmaker"; // Permission group for mapmakers, defined in config.yml
 
   // Role-specific permission nodes
   Permission DEFAULT =
@@ -53,6 +56,7 @@ public interface Permissions {
               .put(DEFAULT.getName(), true)
               .put(JOIN_CHOOSE, true)
               .put(JOIN_FULL, true)
+              .put(EXTRA_VOTE, true)
               .build());
 
   Permission MODERATOR =

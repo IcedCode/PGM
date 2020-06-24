@@ -12,12 +12,12 @@
     <description>The original PvP Game Manager for Minecraft.</description>
     <inceptionYear>2011</inceptionYear>
 
-    <url>https://github.com/Electroid/PGM</url>
+    <url>https://pgm.dev</url>
     <issueManagement>
-        <url>https://github.com/Electroid/PGM/issues</url>
+        <url>https://github.com/PGMDev/PGM/issues</url>
     </issueManagement>
     <scm>
-        <connection>scm:git:git://github.com/Electroid/PGM</connection>
+        <connection>scm:git:git://github.com/PGMDev/PGM</connection>
     </scm>
 
     <developers>
@@ -29,7 +29,7 @@
 
     <groupId>tc.oc.pgm</groupId>
     <artifactId>PGM</artifactId>
-    <version>0.8-SNAPSHOT</version>
+    <version>0.9-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <modules>
@@ -40,18 +40,23 @@
 
     <repositories>
         <repository>
-            <id>ashcon-repo</id>
-            <url>https://repo.ashcon.app/content/repositories/snapshots</url>
+            <id>jitpack.io</id>
+            <url>https://jitpack.io</url>
         </repository>
         <repository>
-            <id>viaversion-repo</id>
+            <id>viaversion.com</id>
             <url>https://repo.viaversion.com</url>
+        </repository>
+        <!-- TODO: move SportPaper to jitpack.io -->
+        <repository>
+            <id>ashcon.app</id>
+            <url>https://repo.ashcon.app/content/repositories/snapshots</url>
         </repository>
     </repositories>
 
     <distributionManagement>
         <repository>
-            <id>ashcon-repo</id>
+            <id>ashcon.app</id>
             <url>https://repo.ashcon.app/content/repositories/snapshots</url>
         </repository>
     </distributionManagement>
@@ -73,15 +78,6 @@
             <version>2.2.2</version>
             <scope>provided</scope>
             <optional>true</optional>
-        </dependency>
-
-        <!-- Compile-time library used to generate "Delegate" classes -->
-        <!-- TODO: remove after deprecation of tc.oc.util.bukkit.Component -->
-        <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <version>1.18.12</version>
-            <scope>provided</scope>
         </dependency>
 
         <!-- XML parsing library used for all "map.xml" configuration loading -->
@@ -120,7 +116,7 @@
         <dependency>
             <groupId>net.kyori</groupId>
             <artifactId>text-adapter-bukkit</artifactId>
-            <version>3.0.3</version>
+            <version>3.0.5</version>
             <scope>compile</scope>
             <!-- Exclude Spigot APIs since we already provide Bukkit -->
             <exclusions>
@@ -136,7 +132,7 @@
         <dependency>
             <groupId>app.ashcon.intake</groupId>
             <artifactId>intake-bukkit</artifactId>
-            <version>1.2-SNAPSHOT</version>
+            <version>v1.2</version>
             <scope>compile</scope>
         </dependency>
 
@@ -145,6 +141,13 @@
             <artifactId>junit-jupiter</artifactId>
             <version>5.6.2</version>
             <scope>test</scope>
+        </dependency>
+
+        <!-- Git library for cloning and pulling repositories -->
+        <dependency>
+            <groupId>org.eclipse.jgit</groupId>
+            <artifactId>org.eclipse.jgit</artifactId>
+            <version>5.7.0.202003110725-r</version>
         </dependency>
     </dependencies>
 
@@ -189,18 +192,6 @@
                         </goals>
                     </execution>
                 </executions>
-            </plugin>
-
-            <!-- Prevent .zip resources from getting filtered and corrupted -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-resources-plugin</artifactId>
-                <version>3.1.0</version>
-                <configuration>
-                    <nonFilteredFileExtensions>
-                        <nonFilteredFileExtension>zip</nonFilteredFileExtension>
-                    </nonFilteredFileExtensions>
-                </configuration>
             </plugin>
 
             <!-- Allows for building of java docs, although not used yet -->

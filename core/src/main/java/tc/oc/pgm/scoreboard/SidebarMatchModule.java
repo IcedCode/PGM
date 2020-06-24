@@ -62,7 +62,7 @@ import tc.oc.pgm.score.ScoreMatchModule;
 import tc.oc.pgm.spawns.events.ParticipantSpawnEvent;
 import tc.oc.pgm.teams.events.TeamRespawnsChangeEvent;
 import tc.oc.pgm.util.TimeUtils;
-import tc.oc.pgm.util.named.NameStyle;
+import tc.oc.pgm.util.text.TextTranslations;
 import tc.oc.pgm.wool.MonumentWool;
 import tc.oc.pgm.wool.WoolMatchModule;
 
@@ -90,9 +90,14 @@ public class SidebarMatchModule implements MatchModule, Listener {
 
   protected @Nullable Future<?> renderTask;
 
-  private static String renderSidebarTitle(Collection<MapTag> tags) {
+  private static String renderSidebarTitle(
+      Collection<MapTag> tags, @Nullable Component gamemodeName) {
     final Component configTitle = PGM.get().getConfiguration().getMatchHeader();
     if (configTitle != null) return LegacyComponentSerializer.legacy().serialize(configTitle);
+    if (gamemodeName != null) {
+      String customGamemode = LegacyComponentSerializer.legacy().serialize(gamemodeName);
+      if (!customGamemode.isEmpty()) return ChatColor.AQUA + customGamemode;
+    }
 
     final List<String> gamemode =
         tags.stream()
@@ -141,7 +146,8 @@ public class SidebarMatchModule implements MatchModule, Listener {
       this.scoreboard = match.needModule(ScoreboardMatchModule.class).getScoreboard(party);
       this.objective = this.scoreboard.registerNewObjective(IDENTIFIER, "dummy");
       this.objective.setDisplayName(
-          StringUtils.left(renderSidebarTitle(match.getMap().getTags()), 32));
+          StringUtils.left(
+              renderSidebarTitle(match.getMap().getTags(), match.getMap().getGamemode()), 32));
       this.objective.setDisplaySlot(DisplaySlot.SIDEBAR);
 
       for (int i = 0; i < MAX_ROWS; ++i) {
@@ -221,10 +227,26 @@ public class SidebarMatchModule implements MatchModule, Listener {
     return match.getModule(BlitzMatchModule.class) != null;
   }
 
+  // Determines if wool objectives should be given their own rows, or all shown on 1 row.
   private boolean isCompactWool() {
     WoolMatchModule wmm = match.getModule(WoolMatchModule.class);
     return wmm != null
-        && MAX_ROWS < wmm.getWools().keySet().size() * 2 - 1 + wmm.getWools().values().size();
+        && !(wmm.getWools().keySet().size() * 2 - 1 + wmm.getWools().values().size() < MAX_ROWS);
+  }
+
+  // Determines if all the map objectives can fit onto the scoreboard with empty rows in between.
+  private boolean isSuperCompact(Set<Competitor> competitorsWithGoals) {
+    int rowsUsed = competitorsWithGoals.size() * 2 - 1;
+
+    if (isCompactWool()) {
+      WoolMatchModule wmm = match.getModule(WoolMatchModule.class);
+      rowsUsed += wmm.getWools().keySet().size();
+    } else {
+      GoalMatchModule gmm = match.needModule(GoalMatchModule.class);
+      rowsUsed += gmm.getGoals().size();
+    }
+
+    return !(rowsUsed < MAX_ROWS);
   }
 
   private void addSidebar(Party party) {
@@ -399,6 +421,7 @@ public class SidebarMatchModule implements MatchModule, Listener {
   private void renderSidebar() {
     final boolean hasScores = hasScores();
     final boolean isBlitz = isBlitz();
+    final boolean isCompactWool = isCompactWool();
     final GoalMatchModule gmm = match.needModule(GoalMatchModule.class);
 
     Set<Competitor> competitorsWithGoals = new HashSet<>();
@@ -416,6 +439,7 @@ public class SidebarMatchModule implements MatchModule, Listener {
         }
       }
     }
+    final boolean isSuperCompact = isSuperCompact(competitorsWithGoals);
 
     for (Map.Entry<Party, Sidebar> entry : this.sidebars.entrySet()) {
       Party viewingParty = entry.getKey();
@@ -433,7 +457,7 @@ public class SidebarMatchModule implements MatchModule, Listener {
             text = renderBlitz(competitor, viewingParty);
           }
           if (text.length() != 0) text += " ";
-          rows.add(text + competitor.getStyledName(NameStyle.FANCY).render().toLegacyText());
+          rows.add(text + TextTranslations.translateLegacy(competitor.getName(), null));
         }
 
         if (!competitorsWithGoals.isEmpty() || !sharedGoals.isEmpty()) {
@@ -466,17 +490,19 @@ public class SidebarMatchModule implements MatchModule, Listener {
       }
 
       for (Competitor competitor : sortedCompetitors) {
-        if (!firstTeam) {
+        // Prevent team name from showing if there isn't space for at least 1 row of its objectives
+        if (!(rows.size() + 2 < MAX_ROWS)) break;
+
+        if (!(firstTeam || isSuperCompact)) {
           // Add a blank row between teams
           rows.add("");
         }
         firstTeam = false;
 
         // Add a row for the team name
-        rows.add(competitor.getStyledName(NameStyle.FANCY).render().toLegacyText());
+        rows.add(TextTranslations.translateLegacy(competitor.getName(), null));
 
-        if (isCompactWool()) {
-          String woolText = " ";
+        if (isCompactWool) {
           boolean firstWool = true;
 
           List<Goal> sortedWools = new ArrayList<>(gmm.getGoals(competitor));
@@ -489,22 +515,32 @@ public class SidebarMatchModule implements MatchModule, Listener {
                 }
               });
 
+          // Calculate whether having three spaces between each wool would fit on the scoreboard.
+          boolean horizontalCompact =
+              (MAX_PREFIX + MAX_SUFFIX)
+                  < (3 * sortedWools.size()) + (3 * (sortedWools.size() - 1)) + 1;
+          String woolText = "";
+          if (!horizontalCompact) {
+            // If there is extra room, add another space to the left of the wools to make them
+            // appear more centered.
+            woolText += " ";
+          }
+
           for (Goal goal : sortedWools) {
             if (goal instanceof MonumentWool && goal.isVisible()) {
               MonumentWool wool = (MonumentWool) goal;
-              if (!firstWool) {
-                woolText += "   ";
-              }
+              woolText += " ";
+              if (!firstWool && !horizontalCompact) woolText += "  ";
               firstWool = false;
               woolText += wool.renderSidebarStatusColor(competitor, viewingParty);
               woolText += wool.renderSidebarStatusText(competitor, viewingParty);
             }
           }
-
+          // Add a row for the compact wools
           rows.add(woolText);
 
         } else {
-          // Add a row for each of this team's goals
+          // Not compact; add a row for each of this team's goals
           for (Goal goal : gmm.getGoals()) {
             if (!goal.isShared() && goal.canComplete(competitor) && goal.isVisible()) {
               rows.add(this.renderGoal(goal, competitor, viewingParty));

@@ -1,11 +1,11 @@
 package tc.oc.pgm.listeners;
 
 import app.ashcon.intake.Command;
-import app.ashcon.intake.argument.ArgumentException;
 import app.ashcon.intake.parametric.annotation.Text;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-import com.google.common.collect.Sets;
+import com.google.common.collect.Maps;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -35,7 +35,6 @@ import tc.oc.pgm.api.player.MatchPlayer;
 import tc.oc.pgm.api.player.VanishManager;
 import tc.oc.pgm.api.setting.SettingKey;
 import tc.oc.pgm.api.setting.SettingValue;
-import tc.oc.pgm.commands.SettingCommands;
 import tc.oc.pgm.ffa.Tribute;
 import tc.oc.pgm.util.StringUtils;
 import tc.oc.pgm.util.UsernameFormatUtils;
@@ -48,11 +47,18 @@ import tc.oc.pgm.util.text.TextTranslations;
 
 public class ChatDispatcher implements Listener {
 
+  private static ChatDispatcher INSTANCE = new ChatDispatcher();
+
+  public static ChatDispatcher get() {
+    return INSTANCE; // FIXME: no one should need to statically access ChatDispatcher, but community
+    // does this a lot
+  }
+
   private final MatchManager manager;
   private final VanishManager vanish;
   private final OnlinePlayerMapAdapter<UUID> lastMessagedBy;
 
-  private final Set<UUID> muted;
+  private final Map<UUID, String> muted;
 
   public static final TextComponent ADMIN_CHAT_PREFIX =
       TextComponent.builder()
@@ -76,15 +82,16 @@ public class ChatDispatcher implements Listener {
   private static final Predicate<MatchPlayer> AC_FILTER =
       viewer -> viewer.getBukkit().hasPermission(Permissions.ADMINCHAT);
 
-  public ChatDispatcher(MatchManager manager, VanishManager vanish) {
-    this.manager = manager;
-    this.vanish = vanish;
+  public ChatDispatcher() {
+    this.manager = PGM.get().getMatchManager();
+    this.vanish = PGM.get().getVanishManager();
     this.lastMessagedBy = new OnlinePlayerMapAdapter<>(PGM.get());
-    this.muted = Sets.newHashSet();
+    this.muted = Maps.newHashMap();
+    PGM.get().getServer().getPluginManager().registerEvents(this, PGM.get());
   }
 
-  public void addMuted(MatchPlayer player) {
-    this.muted.add(player.getId());
+  public void addMuted(MatchPlayer player, String reason) {
+    this.muted.put(player.getId(), reason);
   }
 
   public void removeMuted(MatchPlayer player) {
@@ -92,11 +99,11 @@ public class ChatDispatcher implements Listener {
   }
 
   public boolean isMuted(MatchPlayer player) {
-    return player != null ? muted.contains(player.getId()) : false;
+    return player != null ? muted.containsKey(player.getId()) : false;
   }
 
   public Set<UUID> getMutedUUIDs() {
-    return muted;
+    return muted.keySet();
   }
 
   @Command(
@@ -127,7 +134,7 @@ public class ChatDispatcher implements Listener {
           match,
           sender,
           message,
-          party.getChatPrefix().toLegacyText() + PREFIX_FORMAT,
+          TextTranslations.translateLegacy(party.getChatPrefix(), null) + PREFIX_FORMAT,
           viewer ->
               party.equals(viewer.getParty())
                   || (viewer.isObserving()
@@ -198,16 +205,16 @@ public class ChatDispatcher implements Listener {
       if (option.equals(SettingValue.MESSAGE_OFF)
           && !sender.getBukkit().hasPermission(Permissions.STAFF)) {
         Component blocked =
-            TranslatableComponent.of("command.message.blocked")
-                .args(matchReceiver.getName(NameStyle.FANCY));
+            TranslatableComponent.of(
+                "command.message.blocked", matchReceiver.getName(NameStyle.FANCY));
         sender.sendWarning(blocked);
         return;
       }
 
       if (isMuted(matchReceiver) && !sender.getBukkit().hasPermission(Permissions.STAFF)) {
         Component muted =
-            TranslatableComponent.of("moderation.mute.target")
-                .args(matchReceiver.getName(NameStyle.CONCISE));
+            TranslatableComponent.of(
+                "moderation.mute.target", matchReceiver.getName(NameStyle.CONCISE));
         sender.sendWarning(muted);
         return; // Only staff can message muted players
       } else {
@@ -253,7 +260,7 @@ public class ChatDispatcher implements Listener {
     final MatchPlayer receiver = manager.getPlayer(lastMessagedBy.get(sender.getBukkit()));
     if (receiver == null) {
       audience.sendWarning(
-          TranslatableComponent.of("command.message.noReply").args(TextComponent.of("/msg")));
+          TranslatableComponent.of("command.message.noReply", TextComponent.of("/msg")));
       return;
     }
 
@@ -281,8 +288,7 @@ public class ChatDispatcher implements Listener {
             getApproximatePlayer(player.getMatch(), target, player.getBukkit());
         if (receiver == null) {
           player.sendWarning(
-              TranslatableComponent.of("chat.message.unknownTarget")
-                  .args(TextComponent.of(target)));
+              TranslatableComponent.of("chat.message.unknownTarget", TextComponent.of(target)));
         } else {
           sendDirect(
               player.getMatch(),
@@ -333,13 +339,9 @@ public class ChatDispatcher implements Listener {
       Predicate<MatchPlayer> filter,
       @Nullable SettingValue type) {
     // When a message is empty, this indicates the player wants to change their default chat channel
-    if (text == null) {
-      try {
-        SettingCommands.toggle(
-            sender == null ? null : sender.getBukkit(), sender, SettingKey.CHAT, type.getName());
-      } catch (ArgumentException e) {
-        // No-op, this is when console tries to change chat settings
-      }
+    if (text == null && sender != null) {
+      // FIXME: there should be a better way to do this
+      sender.getBukkit().performCommand("set " + SettingKey.CHAT + " " + type.getName());
       return;
     }
 
@@ -398,7 +400,10 @@ public class ChatDispatcher implements Listener {
   }
 
   private void sendMutedMessage(MatchPlayer player) {
-    Component warning = TranslatableComponent.of("moderation.mute.message");
+    Component warning =
+        TranslatableComponent.of(
+            "moderation.mute.message",
+            TextComponent.of(muted.getOrDefault(player.getId(), ""), TextColor.AQUA));
     player.sendWarning(warning);
   }
 

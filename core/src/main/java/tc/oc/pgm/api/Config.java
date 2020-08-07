@@ -161,11 +161,34 @@ public interface Config {
   Component getMatchFooter();
 
   /**
+   * Gets the left side text for the Tablist.
+   *
+   * @return The left side component, or null for none.
+   */
+  @Nullable
+  Component getLeftTablistText();
+
+  /**
+   * Gets the right side text for the Tablist.
+   *
+   * @return The right side component, or null for none.
+   */
+  @Nullable
+  Component getRightTablistText();
+
+  /**
    * Gets whether the tab list is rendered.
    *
    * @return If the tab list is rendered.
    */
   boolean showTabList();
+
+  /**
+   * Gets whether the tab list is should show real ping.
+   *
+   * @return If the tab list should show real ping.
+   */
+  boolean showTabListPing();
 
   /**
    * Gets whether observers are shown to participants in the tab list.
@@ -226,6 +249,14 @@ public interface Config {
      */
     @Nullable
     String getPrefix();
+
+    /**
+     * Gets the suffix to show next to each player's name.
+     *
+     * @return A chat suffix, or null for none.
+     */
+    @Nullable
+    String getSuffix();
 
     /**
      * Gets the permission node required to be included in this group.

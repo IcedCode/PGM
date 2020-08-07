@@ -25,9 +25,9 @@ map:
     #    folders:
     #    - "tournament"
     #
-    # To disable the default maps, remove the repository below.
-    - uri: "https://github.com/PGMDev/Maps"
-      path: "maps-default"
+    # To enable the default maps, uncomment the repository below.
+    # - uri: "https://github.com/PGMDev/Maps"
+    #  path: "maps-default"
 
   # A path to a map pools file, or empty to disable map pools.
   pools: "map-pools.yml"
@@ -69,6 +69,7 @@ gameplay:
 ui:
   sidebar: true    # Enable the side bar?
   tablist: true    # Enable the tab list?
+  ping: false      # Should tab list show real ping?
   proximity: false # Should the proximity of objectives be visible?
   fireworks: true  # Spawn fireworks after objectives are completed?
   participants-see-observers: true # Can participants see observers in the tab list?
@@ -77,6 +78,13 @@ ui:
 sidebar:
   header: "" # A header, disabled if empty.
   footer: "" # A footer, disabled if empty.
+  
+# Customize text displayed in the footer of the tablist.
+# Color codes can be used ex. "&aHello World"  
+# To disable, set to an empty string.
+tablist:
+  left: ""
+  right: ""
 
 # Overrides the server MoTD.
 #

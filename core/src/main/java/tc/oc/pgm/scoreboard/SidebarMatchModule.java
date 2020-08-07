@@ -189,25 +189,9 @@ public class SidebarMatchModule implements MatchModule, Listener {
         this.rows[row] = text;
 
         if (text != null) {
-          /*
-           Split the row text into prefix and suffix, limited to 16 chars each. Because the player name
-           is a color code, we have to restore the color at the split in the suffix. We also have to be
-           careful not to split in the middle of a color code.
-          */
-          int split = MAX_PREFIX - 1; // Start by assuming there is a color code right on the split
-          if (text.length() < MAX_PREFIX || text.charAt(split) != ChatColor.COLOR_CHAR) {
-            // If there isn't, we can fit one more char in the prefix
-            split++;
-          }
-
-          // Split and truncate the text, and restore the color in the suffix
-          String prefix = StringUtils.substring(text, 0, split);
-          String lastColors = ChatColor.getLastColors(prefix);
-          String suffix =
-              lastColors
-                  + StringUtils.substring(text, split, split + MAX_SUFFIX - lastColors.length());
-          this.teams[row].setPrefix(prefix);
-          this.teams[row].setSuffix(suffix);
+          String[] split = tc.oc.pgm.util.StringUtils.splitIntoTeamPrefixAndSuffix(text);
+          this.teams[row].setPrefix(split[0]);
+          this.teams[row].setSuffix(split[1]);
         }
       }
     }
@@ -371,9 +355,10 @@ public class SidebarMatchModule implements MatchModule, Listener {
     sb.append(goal.renderSidebarStatusText(competitor, viewingParty));
 
     if (goal instanceof ProximityGoal) {
-      sb.append(" ");
       // Show teams their own proximity on shared goals
-      sb.append(((ProximityGoal) goal).renderProximity(competitor, viewingParty));
+      String proximity = ((ProximityGoal) goal).renderProximity(competitor, viewingParty);
+
+      if (!proximity.isEmpty()) sb.append(" ").append(proximity);
     }
 
     sb.append(" ");
@@ -425,17 +410,15 @@ public class SidebarMatchModule implements MatchModule, Listener {
     final GoalMatchModule gmm = match.needModule(GoalMatchModule.class);
 
     Set<Competitor> competitorsWithGoals = new HashSet<>();
-    List<Goal> sharedGoals = new ArrayList<>();
+    List<Goal<?>> sharedGoals = new ArrayList<>();
 
     // Count the rows used for goals
-    for (Goal goal : gmm.getGoals()) {
+    for (Goal<?> goal : gmm.getGoals()) {
       if (goal.isVisible()) {
         if (goal.isShared()) {
           sharedGoals.add(goal);
         } else {
-          for (Competitor competitor : gmm.getCompetitors(goal)) {
-            competitorsWithGoals.add(competitor);
-          }
+          competitorsWithGoals.addAll(gmm.getCompetitors(goal));
         }
       }
     }
@@ -475,18 +458,17 @@ public class SidebarMatchModule implements MatchModule, Listener {
       }
 
       // Team-specific goals
-      List<Competitor> sortedCompetitors = new ArrayList<>(competitorsWithGoals);
+      List<Competitor> sortedCompetitors = new ArrayList<>(match.getCompetitors());
+      sortedCompetitors.retainAll(competitorsWithGoals);
+
       if (viewingParty instanceof Competitor) {
         // Participants see competitors in arbitrary order, with their own at the top
-        Collections.sort(sortedCompetitors, Ordering.arbitrary());
+        sortedCompetitors.sort(Ordering.arbitrary());
 
         // Bump viewing party to the top of the list
         if (sortedCompetitors.remove(viewingParty)) {
           sortedCompetitors.add(0, (Competitor) viewingParty);
         }
-      } else {
-        // Observers see the competitors sorted by closeness to winning
-        // FIXME: Collections.sort(sortedCompetitors, match.getCompetitorRanking());
       }
 
       for (Competitor competitor : sortedCompetitors) {

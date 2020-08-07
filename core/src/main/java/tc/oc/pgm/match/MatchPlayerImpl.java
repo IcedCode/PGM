@@ -72,6 +72,7 @@ public class MatchPlayerImpl implements MatchPlayer, PlayerAudience, Comparable<
   private final AtomicBoolean frozen;
   private final AtomicBoolean dead;
   private final AtomicBoolean visible;
+  private final AtomicBoolean protocolReady;
   private final AtomicInteger protocolVersion;
   private final AtomicBoolean vanished;
 
@@ -88,6 +89,7 @@ public class MatchPlayerImpl implements MatchPlayer, PlayerAudience, Comparable<
     this.dead = new AtomicBoolean(false);
     this.visible = new AtomicBoolean(false);
     this.vanished = new AtomicBoolean(false);
+    this.protocolReady = new AtomicBoolean(ViaUtils.isReady(player));
     this.protocolVersion = new AtomicInteger(ViaUtils.getProtocolVersion(player));
   }
 
@@ -201,12 +203,19 @@ public class MatchPlayerImpl implements MatchPlayer, PlayerAudience, Comparable<
 
   @Override
   public void resetGamemode() {
-    boolean participating = canInteract();
+    boolean participating = canInteract(),
+        allowFlight = !participating && !(isDead() && getProtocolVersion() <= ViaUtils.VERSION_1_7);
     logger.fine("Refreshing gamemode as " + (participating ? "participant" : "observer"));
 
     if (!participating) getBukkit().leaveVehicle();
-    setGameMode(participating ? GameMode.SURVIVAL : GameMode.CREATIVE);
-    this.getBukkit().setAllowFlight(!participating);
+
+    // Due to a bug in updating player abilities in legacy versions, it's better to force
+    // them to adventure mode and not let them fly. Has the side effect that they can't fly on maps
+    // where respawn allows spectating while dead.
+    setGameMode(
+        participating ? GameMode.SURVIVAL : allowFlight ? GameMode.CREATIVE : GameMode.ADVENTURE);
+
+    this.getBukkit().setAllowFlight(allowFlight);
     this.getBukkit().spigot().setAffectsSpawning(participating);
     this.getBukkit().spigot().setCollidesWithEntities(participating);
     this.getBukkit().setDisplayName(getBukkit().getDisplayName());
@@ -371,6 +380,10 @@ public class MatchPlayerImpl implements MatchPlayer, PlayerAudience, Comparable<
 
   @Override
   public int getProtocolVersion() {
+    if (!protocolReady.get()) {
+      protocolReady.set(ViaUtils.isReady(getBukkit()));
+      protocolVersion.set(ViaUtils.getProtocolVersion(getBukkit()));
+    }
     return protocolVersion.get();
   }
 
@@ -408,7 +421,7 @@ public class MatchPlayerImpl implements MatchPlayer, PlayerAudience, Comparable<
 
   @Override
   public String getPrefixedName() {
-    return PGM.get().getPrefixRegistry().getPrefixedName(getBukkit(), getParty());
+    return PGM.get().getNameDecorationRegistry().getDecoratedName(getBukkit(), getParty());
   }
 
   @Override

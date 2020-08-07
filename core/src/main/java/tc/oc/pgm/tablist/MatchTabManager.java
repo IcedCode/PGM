@@ -27,10 +27,12 @@ import tc.oc.pgm.spawns.events.ParticipantSpawnEvent;
 import tc.oc.pgm.teams.Team;
 import tc.oc.pgm.teams.TeamMatchModule;
 import tc.oc.pgm.teams.events.TeamResizeEvent;
+import tc.oc.pgm.util.bukkit.ViaUtils;
 import tc.oc.pgm.util.collection.DefaultMapAdapter;
+import tc.oc.pgm.util.tablist.DynamicTabEntry;
 import tc.oc.pgm.util.tablist.PlayerTabEntry;
+import tc.oc.pgm.util.tablist.TabEntry;
 import tc.oc.pgm.util.tablist.TabManager;
-import tc.oc.pgm.util.tablist.TabView;
 
 public class MatchTabManager extends TabManager implements Listener {
 
@@ -43,16 +45,32 @@ public class MatchTabManager extends TabManager implements Listener {
   private final Map<Match, FreeForAllTabEntry> freeForAllEntries =
       new DefaultMapAdapter<>(FreeForAllTabEntry::new, true);
 
+  private Future<?> pingUpdateTask;
   private Future<?> renderTask;
 
   public MatchTabManager(Plugin plugin) {
-    super(plugin, new MatchTabView.Factory(), null);
+    super(plugin, MatchTabView::new, null);
+
+    if (PGM.get().getConfiguration().showTabListPing()) {
+      PlayerTabEntry.setShowRealPing(true);
+      // If ping is shown, invalidate player entries to force-update them every so often
+      pingUpdateTask =
+          PGM.get()
+              .getExecutor()
+              .scheduleWithFixedDelay(this::invalidatePlayers, 5, 15, TimeUnit.SECONDS);
+    } else {
+      PlayerTabEntry.setShowRealPing(false);
+    }
   }
 
   public void disable() {
     if (this.renderTask != null) {
       this.renderTask.cancel(true);
       this.renderTask = null;
+    }
+    if (this.pingUpdateTask != null) {
+      this.pingUpdateTask.cancel(true);
+      this.pingUpdateTask = null;
     }
 
     HandlerList.unregisterAll(this);
@@ -71,15 +89,20 @@ public class MatchTabManager extends TabManager implements Listener {
               MatchTabManager.this.render();
             }
           };
-      this.renderTask = PGM.get().getExecutor().schedule(render, 1, TimeUnit.SECONDS);
+      this.renderTask = PGM.get().getExecutor().schedule(render, 50, TimeUnit.MILLISECONDS);
     }
   }
 
   @Override
-  public @Nullable TabView getView(Player viewer) {
-    TabView view = super.getView(viewer);
-    if (view instanceof ListeningTabView) {
-      plugin.getServer().getPluginManager().registerEvents((ListeningTabView) view, PGM.get());
+  public @Nullable MatchTabView getViewOrNull(Player viewer) {
+    return (MatchTabView) super.getViewOrNull(viewer);
+  }
+
+  @Override
+  public @Nullable MatchTabView getView(Player viewer) {
+    MatchTabView view = (MatchTabView) super.getView(viewer);
+    if (view != null) {
+      plugin.getServer().getPluginManager().registerEvents(view, PGM.get());
     }
     return view;
   }
@@ -115,10 +138,35 @@ public class MatchTabManager extends TabManager implements Listener {
     }
   }
 
+  /** Invalidates all player entries, used for ping to update */
+  private void invalidatePlayers() {
+    for (TabEntry value : playerEntries.values()) {
+      if (value instanceof DynamicTabEntry) ((DynamicTabEntry) value).invalidate();
+    }
+  }
+
   @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
   public void onJoin(PlayerJoinEvent event) {
-    TabView view = this.getView(event.getPlayer());
-    if (view != null) view.enable(this);
+    tryEnable(event.getPlayer());
+  }
+
+  /**
+   * Method that will try to enable the view for this player. This can only be done after the player
+   * has been successfully injected by via version, if done earlier, it results in 1.7 clients
+   * sometimes getting 1.8 tab
+   *
+   * @param player The player to enable the view for
+   */
+  private void tryEnable(Player player) {
+    if (!player.isOnline()) return;
+    if (!ViaUtils.isReady(player)) {
+      // Player connection hasn't been setup yet, try next tick
+      PGM.get().getExecutor().schedule(() -> tryEnable(player), 50, TimeUnit.MILLISECONDS);
+      return;
+    }
+    MatchTabView view = getViewOrNull(player);
+    if (view == null || ViaUtils.getProtocolVersion(player) < ViaUtils.VERSION_1_8) return;
+    view.enable(this);
   }
 
   @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -137,11 +185,8 @@ public class MatchTabManager extends TabManager implements Listener {
   /** Delegated events */
   @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
   public void onJoinMatch(PlayerJoinMatchEvent event) {
-    TabView view = this.getView(event.getPlayer().getBukkit());
-    if (view instanceof ListeningTabView) {
-      ((ListeningTabView) view).onViewerJoinMatch(event);
-    }
-
+    MatchTabView view = this.getView(event.getPlayer().getBukkit());
+    if (view != null) view.onViewerJoinMatch(event);
     invalidate(event.getPlayer());
   }
 
@@ -192,8 +237,6 @@ public class MatchTabManager extends TabManager implements Listener {
 
   @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
   public void onVanish(PlayerVanishEvent event) {
-    PlayerTabEntry entry = getPlayerEntry(event.getPlayer());
-    entry.invalidate();
-    entry.refresh();
+    invalidate(event.getPlayer());
   }
 }

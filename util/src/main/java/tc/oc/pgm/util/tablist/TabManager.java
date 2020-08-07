@@ -43,7 +43,7 @@ public class TabManager implements Listener {
   protected final Plugin plugin;
   final DefaultMapAdapter<Player, TabView> enabledViews;
 
-  final DefaultMapAdapter<Player, TabEntry> playerEntries;
+  protected final DefaultMapAdapter<Player, TabEntry> playerEntries;
   final Map<Integer, TabEntry> blankEntries =
       new DefaultMapAdapter<Integer, TabEntry>(key -> new BlankTabEntry(), true);
 
@@ -106,7 +106,7 @@ public class TabManager implements Listener {
   public void render() {
     if (this.dirty) {
       for (TabView view : this.enabledViews.values()) {
-        view.render();
+        if (view != null) view.render();
       }
 
       this.dirty = false;

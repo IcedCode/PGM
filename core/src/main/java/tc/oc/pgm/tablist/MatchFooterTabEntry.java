@@ -3,10 +3,12 @@ package tc.oc.pgm.tablist;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
+import net.kyori.text.Component;
 import net.kyori.text.TextComponent;
 import net.kyori.text.TranslatableComponent;
 import net.kyori.text.format.TextColor;
 import net.md_5.bungee.api.chat.BaseComponent;
+import tc.oc.pgm.api.PGM;
 import tc.oc.pgm.api.match.Match;
 import tc.oc.pgm.api.match.MatchScope;
 import tc.oc.pgm.api.player.MatchPlayer;
@@ -30,7 +32,7 @@ public class MatchFooterTabEntry extends DynamicTabEntry {
   @Override
   public void addToView(TabView view) {
     super.addToView(view);
-    if (this.tickTask == null) {
+    if (this.tickTask == null && match.isLoaded()) {
       Runnable tick = MatchFooterTabEntry.this::invalidate;
       this.tickTask =
           match
@@ -54,10 +56,18 @@ public class MatchFooterTabEntry extends DynamicTabEntry {
 
     MatchPlayer viewer = match.getPlayer(view.getViewer());
 
-    if (viewer.getCompetitor() != null
+    if (viewer != null
+        && viewer.isParticipating()
         && viewer.getSettings().getValue(SettingKey.STATS).equals(SettingValue.STATS_ON)) {
-      content.append(match.getModule(StatsMatchModule.class).getBasicStatsMessage(viewer.getId()));
+      content.append(match.needModule(StatsMatchModule.class).getBasicStatsMessage(viewer.getId()));
       content.append("\n");
+    }
+
+    final Component leftContent = PGM.get().getConfiguration().getLeftTablistText();
+    final Component rightContent = PGM.get().getConfiguration().getRightTablistText();
+
+    if (leftContent != null) {
+      content.append(leftContent.colorIfAbsent(TextColor.WHITE)).append(" - ", TextColor.DARK_GRAY);
     }
 
     content
@@ -66,6 +76,12 @@ public class MatchFooterTabEntry extends DynamicTabEntry {
         .append(
             TimeUtils.formatDuration(match.getDuration()),
             this.match.isRunning() ? TextColor.GREEN : TextColor.GOLD);
+
+    if (rightContent != null) {
+      content
+          .append(" - ", TextColor.DARK_GRAY)
+          .append(rightContent.colorIfAbsent(TextColor.WHITE));
+    }
 
     return TextTranslations.toBaseComponent(
         content.colorIfAbsent(TextColor.DARK_GRAY).build(), view.getViewer());

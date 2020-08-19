@@ -11,6 +11,7 @@ import net.md_5.bungee.api.chat.BaseComponent;
 import tc.oc.pgm.api.PGM;
 import tc.oc.pgm.api.match.Match;
 import tc.oc.pgm.api.match.MatchScope;
+import tc.oc.pgm.api.party.Competitor;
 import tc.oc.pgm.api.player.MatchPlayer;
 import tc.oc.pgm.api.setting.SettingKey;
 import tc.oc.pgm.api.setting.SettingValue;
@@ -35,9 +36,7 @@ public class MatchFooterTabEntry extends DynamicTabEntry {
     if (this.tickTask == null && match.isLoaded()) {
       Runnable tick = MatchFooterTabEntry.this::invalidate;
       this.tickTask =
-          match
-              .getExecutor(MatchScope.LOADED)
-              .scheduleWithFixedDelay(tick, 0, TimeUtils.TICK * 5, TimeUnit.MILLISECONDS);
+          match.getExecutor(MatchScope.LOADED).scheduleWithFixedDelay(tick, 0, 1, TimeUnit.SECONDS);
     }
   }
 
@@ -51,16 +50,17 @@ public class MatchFooterTabEntry extends DynamicTabEntry {
   }
 
   @Override
-  public BaseComponent getContent(TabView view) {
+  public BaseComponent[] getContent(TabView view) {
     TextComponent.Builder content = TextComponent.builder();
 
     MatchPlayer viewer = match.getPlayer(view.getViewer());
 
     if (viewer != null
-        && viewer.isParticipating()
+        && viewer.getParty() instanceof Competitor
+        && (match.isRunning() || match.isFinished())
         && viewer.getSettings().getValue(SettingKey.STATS).equals(SettingValue.STATS_ON)) {
       content.append(match.needModule(StatsMatchModule.class).getBasicStatsMessage(viewer.getId()));
-      content.append("\n");
+      content.append(TextComponent.newline());
     }
 
     final Component leftContent = PGM.get().getConfiguration().getLeftTablistText();
@@ -83,7 +83,7 @@ public class MatchFooterTabEntry extends DynamicTabEntry {
           .append(rightContent.colorIfAbsent(TextColor.WHITE));
     }
 
-    return TextTranslations.toBaseComponent(
+    return TextTranslations.toBaseComponentArray(
         content.colorIfAbsent(TextColor.DARK_GRAY).build(), view.getViewer());
   }
 }

@@ -170,6 +170,10 @@ public class TabDisplay {
       String[] names = new String[this.slots];
       Arrays.fill(names, "");
       this.viewers.put(viewer, names);
+
+      // Force removing and re-adding all players, because tab list is FIFO in 1.7, re-adding
+      // players makes them append at the end
+      NMSHacks.removeAndAddAllTabPlayers(viewer);
     }
   }
 

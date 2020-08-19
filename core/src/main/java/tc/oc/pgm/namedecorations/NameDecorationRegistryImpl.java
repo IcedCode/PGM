@@ -2,6 +2,9 @@ package tc.oc.pgm.namedecorations;
 
 import java.util.UUID;
 import javax.annotation.Nullable;
+import net.kyori.text.Component;
+import net.kyori.text.TextComponent;
+import net.kyori.text.format.TextColor;
 import net.md_5.bungee.api.ChatColor;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -13,8 +16,7 @@ import tc.oc.pgm.api.party.Party;
 import tc.oc.pgm.api.player.MatchPlayer;
 import tc.oc.pgm.events.PlayerJoinMatchEvent;
 import tc.oc.pgm.events.PlayerPartyChangeEvent;
-import tc.oc.pgm.tablist.MatchTabManager;
-import tc.oc.pgm.util.tablist.PlayerTabEntry;
+import tc.oc.pgm.util.text.TextFormatter;
 
 public class NameDecorationRegistryImpl implements NameDecorationRegistry, Listener {
 
@@ -38,7 +40,13 @@ public class NameDecorationRegistryImpl implements NameDecorationRegistry, Liste
 
   @EventHandler
   public void onNameDecorationChange(NameDecorationChangeEvent event) {
-    refreshPlayer(event.getUUID());
+    if (event.getUUID() == null) return;
+
+    final Player player = Bukkit.getPlayer(event.getUUID());
+    final MatchPlayer matchPlayer = PGM.get().getMatchManager().getPlayer(player);
+    if (matchPlayer == null) return;
+
+    matchPlayer.getBukkit().setDisplayName(getDecoratedName(player, matchPlayer.getParty()));
   }
 
   @Override
@@ -50,6 +58,17 @@ public class NameDecorationRegistryImpl implements NameDecorationRegistry, Liste
         + ChatColor.WHITE;
   }
 
+  @Override
+  public Component getDecoratedNameComponent(Player player, Party party) {
+    return TextComponent.builder()
+        .append(getPrefixComponent(player.getUniqueId()))
+        .append(
+            player.getName(),
+            party == null ? TextColor.WHITE : TextFormatter.convert(party.getColor()))
+        .append(getSuffixComponent(player.getUniqueId()))
+        .build();
+  }
+
   public String getPrefix(UUID uuid) {
     return provider != null ? provider.getPrefix(uuid) : "";
   }
@@ -58,21 +77,12 @@ public class NameDecorationRegistryImpl implements NameDecorationRegistry, Liste
     return provider != null ? provider.getSuffix(uuid) : "";
   }
 
-  @Override
-  public void refreshPlayer(UUID uuid) {
-    if (uuid == null) return;
+  public Component getPrefixComponent(UUID uuid) {
+    return provider != null ? provider.getPrefixComponent(uuid) : TextComponent.empty();
+  }
 
-    final Player player = Bukkit.getPlayer(uuid);
-    final MatchPlayer matchPlayer = PGM.get().getMatchManager().getPlayer(player);
-    if (matchPlayer == null) return;
-
-    matchPlayer.getBukkit().setDisplayName(getDecoratedName(player, matchPlayer.getParty()));
-
-    final MatchTabManager tabManager = PGM.get().getMatchTabManager();
-    if (tabManager != null) {
-      final PlayerTabEntry tabEntry = (PlayerTabEntry) tabManager.getPlayerEntryOrNull(player);
-      if (tabEntry != null) tabEntry.invalidate();
-    }
+  public Component getSuffixComponent(UUID uuid) {
+    return provider != null ? provider.getSuffixComponent(uuid) : TextComponent.empty();
   }
 
   @Override

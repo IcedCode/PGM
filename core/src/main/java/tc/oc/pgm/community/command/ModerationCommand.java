@@ -809,7 +809,25 @@ public class ModerationCommand implements Listener {
         TextComponent.builder().append(WARN_SYMBOL).append(titleWord).append(WARN_SYMBOL).build();
     Component subtitle = formatPunishmentReason(reason).color(TextColor.GOLD);
 
-    target.showTitle(title, subtitle, 5, 200, 10);
+    // Legacy support - Displays a chat message instead of title
+    if (target.isLegacy()) {
+      target.sendMessage(
+          TextFormatter.horizontalLineHeading(target.getBukkit(), title, TextColor.GRAY));
+      target.sendMessage(TextComponent.empty());
+      target.sendMessage(
+          TextFormatter.horizontalLineHeading(
+              target.getBukkit(),
+              subtitle,
+              TextColor.YELLOW,
+              TextDecoration.OBFUSCATED,
+              LegacyFormatUtils.MAX_CHAT_WIDTH));
+      target.sendMessage(TextComponent.empty());
+      target.sendMessage(
+          TextFormatter.horizontalLineHeading(target.getBukkit(), title, TextColor.GRAY));
+
+    } else {
+      target.showTitle(title, subtitle, 5, 200, 10);
+    }
     target.playSound(WARN_SOUND);
   }
 

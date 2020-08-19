@@ -1,6 +1,7 @@
 package tc.oc.pgm.namedecorations;
 
-import java.util.UUID;
+import net.kyori.text.Component;
+import net.kyori.text.TextComponent;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Listener;
 import tc.oc.pgm.api.party.Party;
@@ -17,11 +18,17 @@ public interface NameDecorationRegistry extends Listener {
   String getDecoratedName(Player player, Party party);
 
   /**
-   * Force-refresh this player's decoration
+   * Get the fully decorated name as a Component
    *
-   * @param uuid UUID of the player to refresh
+   * <p>Note: Allows for prefix/suffix hover events
+   *
+   * @param player The player to decorate
+   * @param party The party this player is currently in
+   * @return The name, decorated, in component form
    */
-  void refreshPlayer(UUID uuid);
+  default Component getDecoratedNameComponent(Player player, Party party) {
+    return TextComponent.of(getDecoratedName(player, party));
+  }
 
   /**
    * Set what name decoration provider this registry should use

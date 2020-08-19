@@ -11,6 +11,7 @@ import static tc.oc.pgm.util.text.TextParser.parseUri;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Range;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
@@ -67,6 +68,7 @@ public final class PGMConfig implements Config {
 
   // gameplay.*
   private final boolean woolRefill;
+  private final int griefScore;
 
   // join.*
   private final long minPlayers;
@@ -75,6 +77,7 @@ public final class PGMConfig implements Config {
   private final boolean balanceJoin;
   private final boolean queueJoin;
   private final boolean anytimeJoin;
+  private final boolean flagBeams;
 
   // ui.*
   private final boolean showSideBar;
@@ -157,6 +160,8 @@ public final class PGMConfig implements Config {
     this.matchLimit = parseInteger(config.getString("restart.match-limit", "30"));
 
     this.woolRefill = parseBoolean(config.getString("gameplay.refill-wool", "true"));
+    this.griefScore =
+        parseInteger(config.getString("gameplay.grief-score", "-10"), Range.atMost(0));
 
     this.minPlayers = parseInteger(config.getString("join.min-players", "1"));
     this.limitJoin = parseBoolean(config.getString("join.limit", "true"));
@@ -172,6 +177,8 @@ public final class PGMConfig implements Config {
     this.participantsSeeObservers =
         parseBoolean(config.getString("ui.participants-see-observers", "true"));
     this.showFireworks = parseBoolean(config.getString("ui.fireworks", "true"));
+    this.flagBeams = parseBoolean(config.getString("ui.flag-beams", "false"));
+
     final String header = config.getString("sidebar.header");
     this.header = header == null || header.isEmpty() ? null : parseComponent(header);
     final String footer = config.getString("sidebar.footer");
@@ -505,6 +512,11 @@ public final class PGMConfig implements Config {
   }
 
   @Override
+  public int getGriefScore() {
+    return griefScore;
+  }
+
+  @Override
   public boolean showSideBar() {
     return showSideBar;
   }
@@ -555,6 +567,11 @@ public final class PGMConfig implements Config {
   }
 
   @Override
+  public boolean useLegacyFlagBeams() {
+    return flagBeams;
+  }
+
+  @Override
   public String getMotd() {
     return motd;
   }
@@ -576,18 +593,14 @@ public final class PGMConfig implements Config {
 
   private static class Group implements Config.Group {
     private final String id;
-    private final String prefix;
-    private final String suffix;
+    private final Flair flair;
     private final Permission permission;
     private final Permission observerPermission;
     private final Permission participantPermission;
 
     public Group(ConfigurationSection config) throws TextException {
       this.id = config.getName();
-      final String prefix = config.getString("prefix");
-      this.prefix = prefix == null ? null : parseComponentLegacy(prefix);
-      final String suffix = config.getString("suffix");
-      this.suffix = suffix == null ? null : parseComponentLegacy(suffix);
+      this.flair = new Flair(config);
       final PermissionDefault def =
           id.equalsIgnoreCase("op")
               ? PermissionDefault.OP
@@ -643,6 +656,47 @@ public final class PGMConfig implements Config {
     }
 
     @Override
+    public Flair getFlair() {
+      return flair;
+    }
+  }
+
+  private static class Flair implements Config.Flair {
+
+    private String prefix;
+    private String suffix;
+    private String displayName;
+    private String description;
+    private String clickLink;
+    private Component prefixOverride;
+    private Component suffixOverride;
+
+    public Flair(ConfigurationSection config) {
+      final String prefix = config.getString("prefix");
+      this.prefix = prefix == null ? null : parseComponentLegacy(prefix);
+
+      final String suffix = config.getString("suffix");
+      this.suffix = suffix == null ? null : parseComponentLegacy(suffix);
+
+      final String name = config.getString("display-name");
+      this.displayName = name == null ? null : parseComponentLegacy(name);
+
+      final String desc = config.getString("description");
+      this.description = desc == null ? null : parseComponentLegacy(desc);
+
+      final String link = config.getString("click-link");
+      this.clickLink = link == null ? null : parseComponentLegacy(link);
+
+      final String prefixComp = config.getString("prefix-component");
+      this.prefixOverride =
+          prefixComp == null || prefixComp.isEmpty() ? null : parseComponent(prefixComp);
+
+      final String suffixComp = config.getString("suffix-component");
+      this.suffixOverride =
+          suffixComp == null || suffixComp.isEmpty() ? null : parseComponent(suffixComp);
+    }
+
+    @Override
     public String getPrefix() {
       return prefix;
     }
@@ -650,6 +704,31 @@ public final class PGMConfig implements Config {
     @Override
     public String getSuffix() {
       return suffix;
+    }
+
+    @Override
+    public String getDescription() {
+      return description;
+    }
+
+    @Override
+    public String getDisplayName() {
+      return displayName;
+    }
+
+    @Override
+    public String getClickLink() {
+      return clickLink;
+    }
+
+    @Override
+    public Component getPrefixOverride() {
+      return prefixOverride;
+    }
+
+    @Override
+    public Component getSuffixOverride() {
+      return suffixOverride;
     }
   }
 

@@ -3,6 +3,7 @@ package tc.oc.pgm.util.tablist;
 import java.util.HashMap;
 import java.util.Map;
 import javax.annotation.Nullable;
+import net.md_5.bungee.api.chat.BaseComponent;
 import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
@@ -26,8 +27,9 @@ public class TabView {
   protected @Nullable TabManager manager;
 
   // True when any slots/header/footer have been changed but not rendered
-  private boolean dirtyLayout, dirtyContent, dirtyHeaderFooter;
+  private boolean dirtyLayout, dirtyContent, dirtyHeader, dirtyFooter;
   private final TabEntry[] slots, rendered;
+  private BaseComponent[] header, footer;
 
   public TabView(Player viewer) {
     this.viewer = viewer;
@@ -69,7 +71,8 @@ public class TabView {
 
     this.invalidateLayout();
     this.invalidateContent();
-    this.invalidateHeaderFooter();
+    this.invalidateHeader();
+    this.invalidateFooter();
   }
 
   /** Tear down the display and return control the the viewer's player list to settings */
@@ -108,16 +111,21 @@ public class TabView {
 
   protected void invalidateContent(TabEntry entry) {
     int slot = getSlot(entry);
-    if (slot >= this.size) {
-      this.invalidateHeaderFooter();
-    } else if (slot >= 0) {
-      this.invalidateContent();
+    if (slot == this.headerSlot) this.invalidateHeader();
+    else if (slot == this.footerSlot) this.invalidateFooter();
+    else if (slot >= 0) this.invalidateContent();
+  }
+
+  protected void invalidateHeader() {
+    if (!this.dirtyHeader) {
+      this.dirtyHeader = true;
+      this.invalidateManager();
     }
   }
 
-  protected void invalidateHeaderFooter() {
-    if (!this.dirtyHeaderFooter) {
-      this.dirtyHeaderFooter = true;
+  protected void invalidateFooter() {
+    if (!this.dirtyFooter) {
+      this.dirtyFooter = true;
       this.invalidateManager();
     }
   }
@@ -158,8 +166,10 @@ public class TabView {
 
       if (slot < this.size) {
         this.invalidateLayoutAndContent();
-      } else {
-        this.invalidateHeaderFooter();
+      } else if (slot == this.headerSlot) {
+        this.invalidateHeader();
+      } else if (slot == this.footerSlot) {
+        this.invalidateFooter();
       }
     }
   }
@@ -188,6 +198,20 @@ public class TabView {
     this.renderContent(render);
     this.markSlotsClean();
     this.renderHeaderFooter(render, false);
+    render.finish();
+  }
+
+  public void renderPing() {
+    if (this.manager == null) return;
+
+    TabRender render = new TabRender(this);
+
+    // Build the update packet from entries with updated ping that are not being added or removed
+    for (int i = 0; i < this.size; i++) {
+      TabEntry slot = this.slots[i];
+      if (slot instanceof PlayerTabEntry) render.updatePing(slot, i);
+    }
+
     render.finish();
   }
 
@@ -264,11 +288,17 @@ public class TabView {
   public void renderHeaderFooter(TabRender render, boolean force) {
     if (this.manager == null) return;
 
-    if (force || this.dirtyHeaderFooter) {
-      this.dirtyHeaderFooter = false;
-      render.setHeaderFooter(
-          this.rendered[this.headerSlot] = this.slots[this.headerSlot],
-          this.rendered[this.footerSlot] = this.slots[this.footerSlot]);
+    if (force || this.dirtyHeader || this.dirtyFooter) {
+      if (force || this.dirtyHeader) {
+        this.dirtyHeader = false;
+        header = (this.rendered[this.headerSlot] = this.slots[this.headerSlot]).getContent(this);
+      }
+      if (force || this.dirtyFooter) {
+        this.dirtyFooter = false;
+        footer = (this.rendered[this.footerSlot] = this.slots[this.footerSlot]).getContent(this);
+      }
+
+      render.setHeaderFooter(header, footer);
       this.slots[this.headerSlot].markClean(this);
       this.slots[this.footerSlot].markClean(this);
     }
@@ -299,7 +329,8 @@ public class TabView {
     TabRender render = new TabRender(this);
 
     render.setHeaderFooter(
-        this.manager.getBlankEntry(this.headerSlot), this.manager.getBlankEntry(this.footerSlot));
+        this.manager.getBlankEntry(this.headerSlot).getContent(this),
+        this.manager.getBlankEntry(this.footerSlot).getContent(this));
 
     for (int index = 0; index < this.size; index++) {
       render.destroySlot(this.rendered[index], index);

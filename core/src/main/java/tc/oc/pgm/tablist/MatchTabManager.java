@@ -3,7 +3,9 @@ package tc.oc.pgm.tablist;
 import java.util.Map;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import javax.annotation.Nullable;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -12,6 +14,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.plugin.Plugin;
 import tc.oc.pgm.api.PGM;
+import tc.oc.pgm.api.event.NameDecorationChangeEvent;
 import tc.oc.pgm.api.map.Contributor;
 import tc.oc.pgm.api.match.Match;
 import tc.oc.pgm.api.match.event.MatchResizeEvent;
@@ -36,28 +39,43 @@ import tc.oc.pgm.util.tablist.TabManager;
 
 public class MatchTabManager extends TabManager implements Listener {
 
-  private final Map<Team, TeamTabEntry> teamEntries =
-      new DefaultMapAdapter<>(TeamTabEntry::new, true);
-  private final Map<Match, MapTabEntry> mapEntries =
-      new DefaultMapAdapter<>(MapTabEntry::new, true);
-  private final Map<Match, MatchFooterTabEntry> footerEntries =
-      new DefaultMapAdapter<>(MatchFooterTabEntry::new, true);
-  private final Map<Match, FreeForAllTabEntry> freeForAllEntries =
-      new DefaultMapAdapter<>(FreeForAllTabEntry::new, true);
+  private final Map<Team, TeamTabEntry> teamEntries;
+  private final Map<Match, MapTabEntry> mapEntries;
+  private final Map<Match, MatchFooterTabEntry> footerEntries;
+  private final Map<Match, FreeForAllTabEntry> freeForAllEntries;
 
   private Future<?> pingUpdateTask;
   private Future<?> renderTask;
 
   public MatchTabManager(Plugin plugin) {
-    super(plugin, MatchTabView::new, null);
+    this(
+        plugin,
+        PlayerTabEntry::new,
+        TeamTabEntry::new,
+        MapTabEntry::new,
+        MatchFooterTabEntry::new,
+        FreeForAllTabEntry::new);
+  }
+
+  public MatchTabManager(
+      Plugin plugin,
+      Function<Player, ? extends PlayerTabEntry> playerProvider,
+      Function<Team, ? extends TeamTabEntry> teamProvider,
+      Function<Match, ? extends MapTabEntry> headerProvider,
+      Function<Match, ? extends MatchFooterTabEntry> footerProvider,
+      Function<Match, ? extends FreeForAllTabEntry> ffaProvider) {
+    super(plugin, MatchTabView::new, playerProvider);
+
+    teamEntries = new DefaultMapAdapter<>(teamProvider, true);
+    mapEntries = new DefaultMapAdapter<>(headerProvider, true);
+    footerEntries = new DefaultMapAdapter<>(footerProvider, true);
+    freeForAllEntries = new DefaultMapAdapter<>(ffaProvider, true);
 
     if (PGM.get().getConfiguration().showTabListPing()) {
       PlayerTabEntry.setShowRealPing(true);
-      // If ping is shown, invalidate player entries to force-update them every so often
+      // If ping is shown, update all views every 30 seconds like vanilla does
       pingUpdateTask =
-          PGM.get()
-              .getExecutor()
-              .scheduleWithFixedDelay(this::invalidatePlayers, 5, 15, TimeUnit.SECONDS);
+          PGM.get().getExecutor().scheduleWithFixedDelay(this::renderPing, 5, 30, TimeUnit.SECONDS);
     } else {
       PlayerTabEntry.setShowRealPing(false);
     }
@@ -89,7 +107,7 @@ public class MatchTabManager extends TabManager implements Listener {
               MatchTabManager.this.render();
             }
           };
-      this.renderTask = PGM.get().getExecutor().schedule(render, 50, TimeUnit.MILLISECONDS);
+      this.renderTask = PGM.get().getExecutor().schedule(render, 250, TimeUnit.MILLISECONDS);
     }
   }
 
@@ -138,16 +156,15 @@ public class MatchTabManager extends TabManager implements Listener {
     }
   }
 
-  /** Invalidates all player entries, used for ping to update */
-  private void invalidatePlayers() {
-    for (TabEntry value : playerEntries.values()) {
-      if (value instanceof DynamicTabEntry) ((DynamicTabEntry) value).invalidate();
-    }
-  }
-
   @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
   public void onJoin(PlayerJoinEvent event) {
-    tryEnable(event.getPlayer());
+    if (ViaUtils.isReady(event.getPlayer())) tryEnable(event.getPlayer());
+    else {
+      // Player connection hasn't been setup yet, try next tick
+      PGM.get()
+          .getExecutor()
+          .schedule(() -> tryEnable(event.getPlayer()), 50, TimeUnit.MILLISECONDS);
+    }
   }
 
   /**
@@ -159,11 +176,6 @@ public class MatchTabManager extends TabManager implements Listener {
    */
   private void tryEnable(Player player) {
     if (!player.isOnline()) return;
-    if (!ViaUtils.isReady(player)) {
-      // Player connection hasn't been setup yet, try next tick
-      PGM.get().getExecutor().schedule(() -> tryEnable(player), 50, TimeUnit.MILLISECONDS);
-      return;
-    }
     MatchTabView view = getViewOrNull(player);
     if (view == null || ViaUtils.getProtocolVersion(player) < ViaUtils.VERSION_1_8) return;
     view.enable(this);
@@ -238,5 +250,11 @@ public class MatchTabManager extends TabManager implements Listener {
   @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
   public void onVanish(PlayerVanishEvent event) {
     invalidate(event.getPlayer());
+  }
+
+  @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+  public void onPlayerNameChange(NameDecorationChangeEvent event) {
+    TabEntry entry = getPlayerEntryOrNull(Bukkit.getPlayer(event.getUUID()));
+    if (entry instanceof DynamicTabEntry) ((DynamicTabEntry) entry).invalidate();
   }
 }

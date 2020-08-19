@@ -34,8 +34,8 @@ import tc.oc.pgm.api.party.Party;
 import tc.oc.pgm.goals.ControllableGoal;
 import tc.oc.pgm.goals.IncrementalGoal;
 import tc.oc.pgm.goals.events.GoalCompleteEvent;
+import tc.oc.pgm.goals.events.GoalStatusChangeEvent;
 import tc.oc.pgm.regions.CylindricalRegion;
-import tc.oc.pgm.score.ScoreMatchModule;
 import tc.oc.pgm.teams.Team;
 import tc.oc.pgm.teams.TeamMatchModule;
 import tc.oc.pgm.util.bukkit.BukkitUtils;
@@ -52,6 +52,10 @@ import tc.oc.pgm.util.material.matcher.SingleMaterialMatcher;
 // --         the payload can exist on is a Path, but rather that    I
 // --         the movement of the payload is always from one Path    I
 // --         to another.                                            I
+// --                                                                I
+// --                                                                I
+// -- Head/Tail -> Head is towards a higher index on the rail(->max) I
+// --              tail is towards a lower index on the rail(->0)    I
 // -------------------------------------------------------------------
 
 public class Payload extends ControllableGoal<PayloadDefinition>
@@ -60,7 +64,8 @@ public class Payload extends ControllableGoal<PayloadDefinition>
   public static final ChatColor COLOR_NEUTRAL_TEAM = ChatColor.WHITE;
 
   public static final String SYMBOL_PAYLOAD_NEUTRAL = "\u29be"; // ⦾
-  public static final String SYMBOL_PAYLOAD_PUSHING = "\u279f"; // ➟
+  public static final String SYMBOL_PAYLOAD_PUSHING_PRIMARY = "\u2b46"; // ➟
+  public static final String SYMBOL_PAYLOAD_PUSHING_SECONDARY = "\u2b45";
 
   // The current location of the payload
   private Location payloadLocation;
@@ -76,15 +81,17 @@ public class Payload extends ControllableGoal<PayloadDefinition>
   private Minecart payloadEntity;
   private ArmorStand labelEntity;
 
-  private Path headPath;
-  private Path tailPath;
+  public Path headPath;
+  public Path tailPath;
 
   private Path currentPath;
 
   // The path the payload goes towards in the neutral state, the path the payload starts on;
-  private Path middlePath;
+  private Path
+      middlePath; // TODO Make this able to be user-defined(Vector) but default to the middle
 
-  // TODO save the furhtest each team has come for eom calculation
+  private Path furthestHeadPath;
+  private Path furthestTailPath;
 
   // Switches to true when the payload reaches a end
   private boolean completed = false;
@@ -93,6 +100,7 @@ public class Payload extends ControllableGoal<PayloadDefinition>
   private final List<PayloadCheckpoint> tailCheckpoints = new ArrayList<>();
 
   private PayloadCheckpoint lastReachedCheckpoint;
+  private PayloadCheckpoint nextCheckpoint;
 
   public Payload(Match match, PayloadDefinition definition) {
     super(definition, match);
@@ -113,7 +121,84 @@ public class Payload extends ControllableGoal<PayloadDefinition>
 
   @Override
   public String renderCompletion() {
-    return "o----o";
+
+    final StringBuilder render = new StringBuilder();
+
+    render.append("o");
+
+    final int indexPerLine; // The amount of paths that the payload has to pass to move to the next line
+
+    // This will render where the payload is between the two closest locations important locations
+    // (checkpoints, middle, ends)
+
+    if ((currentPath.getIndex() > tailCheckpoints.get(0).index()
+            && currentPath.getIndex() < headCheckpoints.get(0).index())) {
+      // Payload is currently between the first checkpoints in each direction
+
+      //Render will look like "o---X---o" (any symbol can be switched with the payload symbol)
+
+      if (currentPath.getIndex() == middlePath.getIndex()) // Payload is ON the middle path
+      return "o---" + renderPayloadSymbol() + "---o";
+
+
+      if (middlePath.getIndex()
+          < currentPath.getIndex()) { // Payload is closer towards the primary goal
+        render.append("---X"); // "X" is the middle
+        render.append(buildLines(middlePath.getIndex(), headCheckpoints.get(0).index(), indexPerLineCalculator(headCheckpoints.get(0).index() - middlePath.getIndex(), 3)));
+      } else { // Payload is closer towards the secondary goal
+        render.append(buildLines(tailCheckpoints.get(0).index(), middlePath.getIndex(), indexPerLineCalculator(middlePath.getIndex() - tailCheckpoints.get(0).index(), 3)));
+        render.append("X---"); // "X" is the middle
+      }
+    } else {
+      // The payload is past the first checkpoint in some direction
+
+      //Render will look like "o------o"
+
+      indexPerLine = indexPerLineCalculator(
+                (nextCheckpoint.index()
+                    - lastReachedCheckpoint.index()), 6);
+
+        if(currentPath.isCheckpoint()){
+          render.deleteCharAt(0);
+          render.append(renderPayloadSymbol());
+        }
+
+      render.append(buildLines(lastReachedCheckpoint.index(), nextCheckpoint.index(), indexPerLine));
+      }
+
+    render.append("o");
+
+    //if(middlePath.getIndex() > currentPath.getIndex()) render.reverse();
+
+    return render.toString(); //This has the be done because reversing unicode is no good
+  }
+
+  private String buildLines(int a, int b, int indexPerLine){
+    StringBuilder render = new StringBuilder();
+    for (int i = Math.min(a, b); i < Math.max(a, b); i += indexPerLine) {
+      if(isCurrentPathBetween(i, i + indexPerLine) || (!currentPath.isCheckpoint() && i == currentPath.getIndex()) ) render.append(renderPayloadSymbol());
+      else render.append("-");
+    }
+    return render.toString();
+  }
+
+  private int indexPerLineCalculator(int totalDistance, int lines){
+    return (int) (Math.ceil(Math.abs(totalDistance)) / ((double) lines));
+  }
+
+  private String renderPayloadSymbol() {
+    return isNeutral()
+        ? COLOR_NEUTRAL_TEAM + SYMBOL_PAYLOAD_NEUTRAL + ChatColor.GRAY
+        : currentOwner.getColor() + (isUnderPrimaryOwnerControl() ? SYMBOL_PAYLOAD_PUSHING_PRIMARY : SYMBOL_PAYLOAD_PUSHING_SECONDARY) + ChatColor.RESET + ChatColor.GRAY;
+  }
+
+  private boolean isCurrentPathBetween(int startIndex, int endIndex) {
+    int index = currentPath.getIndex();
+    if (startIndex < endIndex) {
+      return (startIndex < index && index < endIndex);
+    } else {
+      return (endIndex < index && index < startIndex);
+    }
   }
 
   public @Nullable String renderPreciseCompletion() {
@@ -156,7 +241,7 @@ public class Payload extends ControllableGoal<PayloadDefinition>
 
   @Override
   public ChatColor renderSidebarStatusColor(@Nullable Competitor competitor, Party viewer) {
-    return isNeutral() ? ChatColor.GRAY : currentOwner.getColor();
+    return ChatColor.GRAY;
   }
 
   public String renderSidebarStatusText(@Nullable Competitor competitor, Party viewer) {
@@ -182,6 +267,8 @@ public class Payload extends ControllableGoal<PayloadDefinition>
 
     tickDisplay();
     tickMove();
+    updateProx();
+    match.callEvent(new GoalStatusChangeEvent(match, this));
   }
 
   private void tickMove() {
@@ -190,28 +277,23 @@ public class Payload extends ControllableGoal<PayloadDefinition>
 
     Path finalPath =
         isUnderPrimaryOwnerControl()
-            ? headPath
-            : tailPath; // Fetches the final path for the current owner (head or tail)
+            ? tailPath
+            : headPath;
 
     Location finalLocation = finalPath.getLocation();
     final float points = definition.getPoints(); // TODO: Make Completable instead of point based
 
-    if (payloadLocation.getX() == finalLocation.getX()
-        && payloadLocation.getZ() == finalLocation.getZ()) {
-      match.sendMessage(TextComponent.of("Something wrong here..."));
-      if (points > 0) {
+    if ((isUnderPrimaryOwnerControl() ? !currentPath.hasNext() : !currentPath.hasPrevious())) {
         completed = true;
         match.callEvent(new GoalCompleteEvent(match, this, currentOwner, true));
         match.sendMessage(
             TextComponent.of(
                 currentOwner.getNameLegacy() + " Completed the goal 8)", TextColor.GOLD));
 
-        final ScoreMatchModule smm = match.needModule(ScoreMatchModule.class);
+       /* final ScoreMatchModule smm = match.needModule(ScoreMatchModule.class);
         if (smm != null) {
-          if (currentOwner != null) smm.incrementScore(currentOwner, points);
-        }
+          if (currentOwner != null) smm.incrementScore(currentOwner, points);*/
         return;
-      }
     }
 
     speed = Math.abs(speed);
@@ -232,25 +314,31 @@ public class Payload extends ControllableGoal<PayloadDefinition>
 
     if (currentPath.isCheckpoint()
         && (lastReachedCheckpoint == null
-            || currentPath.getIndex() != lastReachedCheckpoint.getIndex())) {
+            || currentPath.getIndex() != lastReachedCheckpoint.index())) {
       PayloadCheckpoint newCheckpoint = null;
 
       if (currentPath.getIndex() > middlePath.getIndex()) {
-        if (lastReachedCheckpoint == tailCheckpoints.get(0) || lastReachedCheckpoint == null)
+        if (lastReachedCheckpoint == tailCheckpoints.get(0) || lastReachedCheckpoint == null) {
           newCheckpoint = headCheckpoints.get(0);
-        else
-          for (PayloadCheckpoint headCheckpoint : headCheckpoints) {
-            if (currentPath.getIndex() == headCheckpoint.getIndex()) {
+          nextCheckpoint = headCheckpoints.get(1);
+        } else
+          for (int i = 0; i < headCheckpoints.size(); i++) {
+            PayloadCheckpoint headCheckpoint = tailCheckpoints.get(i);
+            if (currentPath.getIndex() == headCheckpoint.index()) {
               newCheckpoint = headCheckpoint;
+              nextCheckpoint = headCheckpoints.get(i + 1);
             }
           }
       } else {
-        if (lastReachedCheckpoint == headCheckpoints.get(0) || lastReachedCheckpoint == null)
+        if (lastReachedCheckpoint == headCheckpoints.get(0) || lastReachedCheckpoint == null) {
           newCheckpoint = tailCheckpoints.get(0);
-        else
-          for (PayloadCheckpoint tailCheckpoint : tailCheckpoints) {
-            if (currentPath.getIndex() == tailCheckpoint.getIndex()) {
+          nextCheckpoint = tailCheckpoints.get(1);
+        } else
+          for (int i = 0; i < tailCheckpoints.size(); i++) {
+            PayloadCheckpoint tailCheckpoint = tailCheckpoints.get(i);
+            if (currentPath.getIndex() == tailCheckpoint.index()) {
               newCheckpoint = tailCheckpoint;
+              nextCheckpoint = tailCheckpoints.get(i + 1);
             }
           }
       }
@@ -269,9 +357,9 @@ public class Payload extends ControllableGoal<PayloadDefinition>
         match.sendMessage(
             TextComponent.of(
                 "Checkpoint at index "
-                    + newCheckpoint.getIndex()
+                    + newCheckpoint.index()
                     + "With last checkpoint "
-                    + (lastReachedCheckpoint == null ? "null" : lastReachedCheckpoint.getIndex())));
+                    + (lastReachedCheckpoint == null ? "null" : lastReachedCheckpoint.index())));
       }
 
       lastReachedCheckpoint = newCheckpoint;
@@ -279,14 +367,14 @@ public class Payload extends ControllableGoal<PayloadDefinition>
 
     if (currentPath.isCheckpoint() && lastReachedCheckpoint != null) {
       if (isUnderPrimaryOwnerControl()
-          && lastReachedCheckpoint.getIndex() < middlePath.getIndex()
+          && lastReachedCheckpoint.index() < middlePath.getIndex()
           && lastReachedCheckpoint.isPermanent()) {
         // match.sendMessage(TextComponent.of("primarycontrol + lastindex < middleindex + " +
         // lastReachedCheckpoint.getIndex() + " is a PERMANENT CHECKPOINT"));
         return;
       }
       if (isUnderSecondaryOwnerControl()
-          && lastReachedCheckpoint.getIndex() > middlePath.getIndex()
+          && lastReachedCheckpoint.index() > middlePath.getIndex()
           && lastReachedCheckpoint.isPermanent()) {
         // match.sendMessage(TextComponent.of("secondarycontrol + lastindex > middleindex + " +
         // lastReachedCheckpoint.getIndex() + " is a PERMANENT CHECKPOINT"));
@@ -356,6 +444,8 @@ public class Payload extends ControllableGoal<PayloadDefinition>
     return (float) Math.max(0.001, rgb / 255.0);
   }
 
+  private void updateProx() {}
+
   public void createPayload() {
     // Order is important!
     makeRail();
@@ -364,7 +454,8 @@ public class Payload extends ControllableGoal<PayloadDefinition>
   }
 
   private void summonMinecart() {
-    Location minecartSpawn = middlePath.getLocation();
+    Location minecartSpawn =
+        middlePath.getLocation().clone().toCenterLocation().subtract(0, 0.5, 0);
 
     payloadLocation = minecartSpawn;
 
@@ -458,12 +549,12 @@ public class Payload extends ControllableGoal<PayloadDefinition>
   }
 
   protected void makeRail() {
-    Location location = getStartingLocation().toLocation(getMatch().getWorld());
+    final Location location = getStartingLocation().toLocation(getMatch().getWorld());
 
     // Payload must start on a rail
     if (!isRails(location.getBlock().getType())) {
       getMatch().getLogger().warning("No rail found in starting position for payload");
-      return; // TODO: break with moduleloadexception?
+      return;
     }
 
     final Rails startingRails = (Rails) location.getBlock().getState().getMaterialData();
@@ -579,14 +670,15 @@ public class Payload extends ControllableGoal<PayloadDefinition>
     // TODO: test this lol
     // if(railSize % 2 == 0) match.sendMessage("Payload does not currently support rails with an
     // even size");
-    double lookingfor = railSize / 2D;
-    Path a = tail;
-    while (a.hasPrevious()) {
-      if ((double) a.getIndex() == lookingfor) {
-        middlePath = a;
+    double lookingFor = railSize / 2D;
+    lookingFor += 1;
+    Path discoverMiddle = tail;
+    while (discoverMiddle.hasPrevious()) {
+      if ((double) discoverMiddle.getIndex() == lookingFor) {
+        middlePath = discoverMiddle;
         break;
       }
-      a = a.previous();
+      discoverMiddle = discoverMiddle.previous();
     }
 
     this.currentPath = middlePath;
@@ -596,30 +688,37 @@ public class Payload extends ControllableGoal<PayloadDefinition>
     final List<Integer> permanentHead = definition.getPermanentHeadCheckpoints();
     final List<Integer> permanentTail = definition.getPermanentTailCheckpoints();
 
-    Path b = middlePath;
-    while (b.hasNext()) {
-      Path potentialCheckpoint = b.next(); // No reason to check for a checkpoint ON the middle path
+    Path discoverCheckpoints = middlePath;
+    while (discoverCheckpoints.hasNext()) {
+      Path potentialCheckpoint =
+          discoverCheckpoints.next(); // No reason to check for a checkpoint ON the middle path
       if (potentialCheckpoint.isCheckpoint()) {
         int index = potentialCheckpoint.getIndex();
         boolean permanent = false;
         if (permanentHead != null) permanent = permanentHead.contains(headCheckpoints.size() + 1);
         headCheckpoints.add(new PayloadCheckpoint(index, permanent));
       }
-      b = b.next();
+      discoverCheckpoints = discoverCheckpoints.next();
     }
 
-    b = middlePath; // Reset
+    //Adding the goal as a checkpoint for sidebar progress rendering
+    headCheckpoints.add(new PayloadCheckpoint(discoverCheckpoints.getIndex(), false));
 
-    while (b.hasPrevious()) {
-      Path potentialCheckpoint = b.previous();
+    discoverCheckpoints = middlePath; // Reset
+
+    while (discoverCheckpoints.hasPrevious()) {
+      Path potentialCheckpoint = discoverCheckpoints.previous();
       if (potentialCheckpoint.isCheckpoint()) {
         int index = potentialCheckpoint.getIndex();
         boolean permanent = false;
         if (permanentTail != null) permanent = permanentTail.contains(tailCheckpoints.size() + 1);
         tailCheckpoints.add(new PayloadCheckpoint(index, permanent));
       }
-      b = b.previous();
+      discoverCheckpoints = discoverCheckpoints.previous();
     }
+
+    //Adding the goal as a checkpoint for sidebar progress rendering
+    tailCheckpoints.add(new PayloadCheckpoint(discoverCheckpoints.getIndex(), false));
   }
 
   public boolean isRails(Material material) {

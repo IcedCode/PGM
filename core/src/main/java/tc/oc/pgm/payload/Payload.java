@@ -84,7 +84,7 @@ public class Payload extends ControllableGoal<PayloadDefinition>
   public Path headPath;
   public Path tailPath;
 
-  private Path currentPath;
+  public Path currentPath;
 
   // The path the payload goes towards in the neutral state, the path the payload starts on;
   private Path
@@ -126,8 +126,6 @@ public class Payload extends ControllableGoal<PayloadDefinition>
 
     render.append("o");
 
-    final int indexPerLine; // The amount of paths that the payload has to pass to move to the next line
-
     // This will render where the payload is between the two closest locations important locations
     // (checkpoints, middle, ends)
 
@@ -137,53 +135,36 @@ public class Payload extends ControllableGoal<PayloadDefinition>
 
       //Render will look like "o---X---o" (any symbol can be switched with the payload symbol)
 
-      if (currentPath.getIndex() == middlePath.getIndex()) // Payload is ON the middle path
-      return "o---" + renderPayloadSymbol() + "---o";
 
-
-      if (middlePath.getIndex()
-          < currentPath.getIndex()) { // Payload is closer towards the primary goal
-        render.append("---X"); // "X" is the middle
-        render.append(buildLines(middlePath.getIndex(), headCheckpoints.get(0).index(), indexPerLineCalculator(headCheckpoints.get(0).index() - middlePath.getIndex(), 3)));
-      } else { // Payload is closer towards the secondary goal
-        render.append(buildLines(tailCheckpoints.get(0).index(), middlePath.getIndex(), indexPerLineCalculator(middlePath.getIndex() - tailCheckpoints.get(0).index(), 3)));
-        render.append("X---"); // "X" is the middle
-      }
+      render.append(buildLines(tailCheckpoints.get(0).index(), middlePath.getIndex(), 3));
+      render.append(currentPath.getIndex() == middlePath.getIndex() ? renderPayloadSymbol() : "X");
+      render.append(buildLines(middlePath.getIndex(), headCheckpoints.get(0).index(), 3));
     } else {
       // The payload is past the first checkpoint in some direction
 
       //Render will look like "o------o"
-
-      indexPerLine = indexPerLineCalculator(
-                (nextCheckpoint.index()
-                    - lastReachedCheckpoint.index()), 6);
 
         if(currentPath.isCheckpoint()){
           render.deleteCharAt(0);
           render.append(renderPayloadSymbol());
         }
 
-      render.append(buildLines(lastReachedCheckpoint.index(), nextCheckpoint.index(), indexPerLine));
+      render.append(buildLines(lastReachedCheckpoint.index(), nextCheckpoint.index(), 6));
       }
 
     render.append("o");
 
-    //if(middlePath.getIndex() > currentPath.getIndex()) render.reverse();
-
-    return render.toString(); //This has the be done because reversing unicode is no good
-  }
-
-  private String buildLines(int a, int b, int indexPerLine){
-    StringBuilder render = new StringBuilder();
-    for (int i = Math.min(a, b); i < Math.max(a, b); i += indexPerLine) {
-      if(isCurrentPathBetween(i, i + indexPerLine) || (!currentPath.isCheckpoint() && i == currentPath.getIndex()) ) render.append(renderPayloadSymbol());
-      else render.append("-");
-    }
     return render.toString();
   }
 
-  private int indexPerLineCalculator(int totalDistance, int lines){
-    return (int) (Math.ceil(Math.abs(totalDistance)) / ((double) lines));
+  private String buildLines(int a, int b, int lines){
+    int indexPerLine = (int) (Math.ceil(Math.abs(a - b)) / ((double) lines));
+    StringBuilder render = new StringBuilder();
+    for (int i = Math.min(a, b); i < Math.max(a, b); i += indexPerLine) {
+      if(isCurrentPathBetween(i, i + indexPerLine) || (!currentPath.isCheckpoint() && currentPath.getIndex() != middlePath.getIndex() && i == currentPath.getIndex())) render.append(renderPayloadSymbol());
+      else render.append("-");
+    }
+    return render.toString();
   }
 
   private String renderPayloadSymbol() {
@@ -315,32 +296,12 @@ public class Payload extends ControllableGoal<PayloadDefinition>
     if (currentPath.isCheckpoint()
         && (lastReachedCheckpoint == null
             || currentPath.getIndex() != lastReachedCheckpoint.index())) {
-      PayloadCheckpoint newCheckpoint = null;
+      PayloadCheckpoint newCheckpoint;
 
       if (currentPath.getIndex() > middlePath.getIndex()) {
-        if (lastReachedCheckpoint == tailCheckpoints.get(0) || lastReachedCheckpoint == null) {
-          newCheckpoint = headCheckpoints.get(0);
-          nextCheckpoint = headCheckpoints.get(1);
-        } else
-          for (int i = 0; i < headCheckpoints.size(); i++) {
-            PayloadCheckpoint headCheckpoint = tailCheckpoints.get(i);
-            if (currentPath.getIndex() == headCheckpoint.index()) {
-              newCheckpoint = headCheckpoint;
-              nextCheckpoint = headCheckpoints.get(i + 1);
-            }
-          }
+        newCheckpoint = getPayloadCheckpoint(tailCheckpoints, headCheckpoints);
       } else {
-        if (lastReachedCheckpoint == headCheckpoints.get(0) || lastReachedCheckpoint == null) {
-          newCheckpoint = tailCheckpoints.get(0);
-          nextCheckpoint = tailCheckpoints.get(1);
-        } else
-          for (int i = 0; i < tailCheckpoints.size(); i++) {
-            PayloadCheckpoint tailCheckpoint = tailCheckpoints.get(i);
-            if (currentPath.getIndex() == tailCheckpoint.index()) {
-              newCheckpoint = tailCheckpoint;
-              nextCheckpoint = tailCheckpoints.get(i + 1);
-            }
-          }
+        newCheckpoint = getPayloadCheckpoint(headCheckpoints, tailCheckpoints);
       }
 
       if (newCheckpoint == null) return;
@@ -396,6 +357,22 @@ public class Payload extends ControllableGoal<PayloadDefinition>
     payloadEntity.teleport(payloadLocation);
 
     refreshRegion();
+  }
+
+  private PayloadCheckpoint getPayloadCheckpoint(List<PayloadCheckpoint> oppositeSideCheckpoints, List<PayloadCheckpoint> thisSideCheckpoints) {
+    PayloadCheckpoint newCheckpoint = null;
+    if (lastReachedCheckpoint == oppositeSideCheckpoints.get(0) || lastReachedCheckpoint == null) {
+      newCheckpoint = thisSideCheckpoints.get(0);
+      nextCheckpoint = thisSideCheckpoints.get(1);
+    } else
+      for (int i = 0; i < thisSideCheckpoints.size(); i++) {
+        PayloadCheckpoint tailCheckpoint = thisSideCheckpoints.get(i);
+        if (currentPath.getIndex() == tailCheckpoint.index()) {
+          newCheckpoint = tailCheckpoint;
+          nextCheckpoint = thisSideCheckpoints.get(i + 1);
+        }
+      }
+    return newCheckpoint;
   }
 
   // a = 0,6 * r

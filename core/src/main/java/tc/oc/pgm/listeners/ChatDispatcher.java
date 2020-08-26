@@ -114,6 +114,11 @@ public class ChatDispatcher implements Listener {
       desc = "Send a message to everyone",
       usage = "[message]")
   public void sendGlobal(Match match, MatchPlayer sender, @Nullable @Text String message) {
+    if (sender != null && sender.isVanished()) {
+      sendAdmin(match, sender, message);
+      return;
+    }
+
     if (checkMute(sender)) {
       send(
           match,
@@ -131,6 +136,11 @@ public class ChatDispatcher implements Listener {
       desc = "Send a message to your team",
       usage = "[message]")
   public void sendTeam(Match match, MatchPlayer sender, @Nullable @Text String message) {
+    if (sender != null && sender.isVanished()) {
+      sendAdmin(match, sender, message);
+      return;
+    }
+
     final Party party = sender == null ? match.getDefaultParty() : sender.getParty();
 
     // No team chat when playing free-for-all or match end, default to global chat
@@ -171,7 +181,7 @@ public class ChatDispatcher implements Listener {
     send(
         match,
         sender,
-        message != null ? BukkitUtils.colorize(message) : message,
+        message != null ? BukkitUtils.colorize(message) : null,
         AC_FORMAT,
         getChatFormat(ADMIN_CHAT_PREFIX, sender, message),
         AC_FILTER,
@@ -245,7 +255,11 @@ public class ChatDispatcher implements Listener {
         message,
         formatPrivateMessage("misc.from", matchReceiver.getBukkit()),
         getChatFormat(
-            TranslatableComponent.of("misc.from", TextColor.GRAY, TextDecoration.ITALIC),
+            TextComponent.builder()
+                .append(
+                    TranslatableComponent.of("misc.from", TextColor.GRAY, TextDecoration.ITALIC))
+                .append(" ")
+                .build(),
             sender,
             message),
         viewer -> viewer.getBukkit().equals(receiver),
@@ -258,8 +272,11 @@ public class ChatDispatcher implements Listener {
         message,
         formatPrivateMessage("misc.to", sender.getBukkit()),
         getChatFormat(
-            TranslatableComponent.of("misc.to", TextColor.GRAY, TextDecoration.ITALIC),
-            sender,
+            TextComponent.builder()
+                .append(TranslatableComponent.of("misc.to", TextColor.GRAY, TextDecoration.ITALIC))
+                .append(" ")
+                .build(),
+            manager.getPlayer(receiver),
             message),
         viewer -> viewer.getBukkit().equals(sender.getBukkit()),
         null);
@@ -373,18 +390,16 @@ public class ChatDispatcher implements Listener {
           .getAsyncExecutor()
           .execute(
               () -> {
-                final Predicate<MatchPlayer> finalFilter = sender.isVanished() ? AC_FILTER : filter;
-                final String finalFormat = sender.isVanished() ? AC_FORMAT : format;
                 final AsyncPlayerChatEvent event =
                     new AsyncPlayerChatEvent(
                         false,
                         sender.getBukkit(),
                         message,
                         match.getPlayers().stream()
-                            .filter(finalFilter)
+                            .filter(filter)
                             .map(MatchPlayer::getBukkit)
                             .collect(Collectors.toSet()));
-                event.setFormat(finalFormat);
+                event.setFormat(format);
                 CHAT_EVENT_CACHE.put(event, true);
                 match.callEvent(event);
 

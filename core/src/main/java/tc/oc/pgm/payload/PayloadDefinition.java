@@ -21,7 +21,7 @@ class PayloadDefinition extends ControllableGoalDefinition {
   private final TeamFactory primaryOwner;
 
   // The optional secondary owner, if present they push towards the secondary goal
-  // @Nullable
+  @Nullable
   private final TeamFactory secondaryOwner;
 
   // TODO: Make the payload accept any region
@@ -31,12 +31,12 @@ class PayloadDefinition extends ControllableGoalDefinition {
   /** The height of the payload (detecting players) */
   private final float height;
 
-  private final Vector primaryOwnerGoal;
+  private final Vector primaryOwnerGoal; //TODO break if this is not present
 
   private final Vector secondaryOwnerGoal;
 
   /** The material(s) of the checkpoint blocks */
-  private final MaterialMatcher checkpointMaterial;
+  @Nullable private final MaterialMatcher checkpointMaterial;
 
   @Nullable private final List<Integer> permanentHeadCheckpoints;
   @Nullable private final List<Integer> permanentTailCheckpoints;
@@ -66,32 +66,32 @@ class PayloadDefinition extends ControllableGoalDefinition {
   private final float points;
 
   PayloadDefinition(
-      String id,
-      String name,
-      Boolean required,
-      boolean visible,
-      Vector startingLocation,
-      float yaw,
-      Filter controlFilter,
-      Filter dominateFilter,
-      TeamFactory primaryOwner,
-      TeamFactory secondaryOwner,
-      CaptureCondition captureCondition,
-      float radius,
-      float height,
-      Vector primaryOwnerGoal,
-      Vector secondaryOwnerGoal,
-      MaterialMatcher checkpointMaterial,
-      List<Integer> permanentHeadCheckpoints,
-      List<Integer> permanentTailCheckpoints,
-      float primaryOwnerSpeed,
-      float primaryOwnerSpeedMultiplier,
-      float secondaryOwnerSpeed,
-      float secondaryOwnerSpeedMultiplier,
-      float neutralSpeed,
-      boolean permanent,
-      float points,
-      boolean showProgress) {
+          String id,
+          String name,
+          Boolean required,
+          boolean visible,
+          Vector startingLocation,
+          float yaw,
+          Filter controlFilter,
+          Filter dominateFilter,
+          TeamFactory primaryOwner,
+          @Nullable TeamFactory secondaryOwner,
+          CaptureCondition captureCondition,
+          float radius,
+          float height,
+          Vector primaryOwnerGoal,
+          Vector secondaryOwnerGoal,
+          @Nullable MaterialMatcher checkpointMaterial,
+          @Nullable List<Integer> permanentHeadCheckpoints,
+          @Nullable List<Integer> permanentTailCheckpoints,
+          float primaryOwnerSpeed,
+          float primaryOwnerSpeedMultiplier,
+          float secondaryOwnerSpeed,
+          float secondaryOwnerSpeedMultiplier,
+          float neutralSpeed,
+          boolean permanent,
+          float points,
+          boolean showProgress) {
     super(
         id,
         name,
@@ -161,14 +161,17 @@ class PayloadDefinition extends ControllableGoalDefinition {
     return this.height;
   }
 
+  @Nullable
   public MaterialMatcher getCheckpointMaterial() {
     return checkpointMaterial;
   }
 
+  @Nullable
   public List<Integer> getPermanentHeadCheckpoints() {
     return permanentHeadCheckpoints;
   }
 
+  @Nullable
   public List<Integer> getPermanentTailCheckpoints() {
     return permanentTailCheckpoints;
   }
@@ -189,6 +192,7 @@ class PayloadDefinition extends ControllableGoalDefinition {
     return primaryOwner;
   }
 
+  @Nullable
   public TeamFactory getSecondaryOwner() {
     return secondaryOwner;
   }

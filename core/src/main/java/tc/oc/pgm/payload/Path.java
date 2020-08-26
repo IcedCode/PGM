@@ -31,7 +31,7 @@ public class Path implements Comparable<Path>{
     this.checkpoint = checkpoint;
   }
 
-  public int getIndex() {
+  public int index() {
     return index;
   }
 
@@ -69,7 +69,7 @@ public class Path implements Comparable<Path>{
 
   @Override
   public int compareTo(Path o) { //TODO: Switch out all the .getIndex comparisons with Comparable
-    Integer.compare(index, o.getIndex());
-    return Comparator.comparingInt(Path::getIndex).compare(this, o);
+    Integer.compare(index, o.index());
+    return Comparator.comparingInt(Path::index).compare(this, o);
   }
 }

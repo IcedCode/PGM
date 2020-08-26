@@ -65,7 +65,9 @@ public class PayloadModule implements MapModule<PayloadMatchModule> {
 
       for (Element payloadEl :
           XMLUtils.flattenElements(doc.getRootElement(), "payloads", "payload")) {
-        definitions.add(PayloadParser.parsePayloadDefinition(factory, payloadEl));
+        PayloadDefinition definition = PayloadParser.parsePayloadDefinition(factory, payloadEl);
+        factory.getFeatures().addFeature(payloadEl, definition);
+        definitions.add(definition);
       }
       if (definitions.isEmpty()) return null;
       return new PayloadModule(definitions);

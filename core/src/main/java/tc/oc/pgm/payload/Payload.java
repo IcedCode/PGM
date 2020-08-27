@@ -209,13 +209,11 @@ public class Payload extends ControllableGoal<PayloadDefinition>
   @Override
   public boolean canComplete(
       Competitor
-          team) { // TODO: Change this if optional goals for primary/secondary team is added (Check
-    // if goal exists)
+          team) {
     if (team instanceof Team)
-      return (((Team) team).isInstance(definition.getPrimaryOwner())
-              && definition.getPrimaryOwnerGoal() != null)
+      return ((Team) team).isInstance(definition.getPrimaryOwner())
           || (((Team) team).isInstance(definition.getSecondaryOwner())
-              && definition.getSecondaryOwnerGoal() != null);
+              && !definition.shouldSecondaryTeamPushButNoGoal()); //If they have no goal they cant complete anything
     return false;
   }
 
@@ -270,15 +268,9 @@ public class Payload extends ControllableGoal<PayloadDefinition>
 
     float speed = getControllingTeamSpeed(); // Fetches the speed for the current owner
 
-    Path finalPath =
-        isUnderPrimaryOwnerControl()
-            ? tailPath
-            : headPath;
+    final float points = definition.getPoints();
 
-    Location finalLocation = finalPath.getLocation();
-    final float points = definition.getPoints(); // TODO: Make Completable instead of point based
-
-    if ((isUnderPrimaryOwnerControl() ? !currentPath.hasNext() : !currentPath.hasPrevious())) {
+    if ((isUnderPrimaryOwnerControl() ? !currentPath.hasNext() : !currentPath.hasPrevious()) && !(!isUnderPrimaryOwnerControl() && definition.shouldSecondaryTeamPushButNoGoal())) {
         completed = true;
         match.callEvent(new GoalCompleteEvent(match, this, currentOwner, true));
         match.sendMessage(
@@ -290,6 +282,7 @@ public class Payload extends ControllableGoal<PayloadDefinition>
           if (currentOwner != null) smm.incrementScore(currentOwner, points);*/
         return;
     }
+
 
     speed = Math.abs(speed);
     move(speed / 10.0);
@@ -379,8 +372,6 @@ public class Payload extends ControllableGoal<PayloadDefinition>
   // FIXME wrong formula :facepalm:
   private void tickDisplay() {
     Color color = currentOwner == null ? Color.WHITE : currentOwner.getFullColor();
-    ChatColor controllingColor =
-        currentOwner != null ? currentOwner.getColor() : COLOR_NEUTRAL_TEAM;
     for (double angle = 0, angle2 = 0.6 * definition.getRadius(); angle <= 360; angle += angle2) {
       Location base =
           payloadLocation
@@ -390,16 +381,14 @@ public class Payload extends ControllableGoal<PayloadDefinition>
                       definition.getRadius() * Math.cos(angle),
                       0.5,
                       definition.getRadius() * Math.sin(angle)));
-      String asuh =
-          controllingColor == ChatColor.DARK_RED ? ChatColor.RED.name() : controllingColor.name();
       match
           .getWorld()
           .spigot()
           .playEffect(
               base,
               Effect.COLOURED_DUST,
-              Material.WOOL.getId(), // TODO is these two required???
-              DyeColor.valueOf(asuh).getWoolData(),
+              Material.WOOL.getId(),
+              (byte) 0, //Does not matter?
               rgbToParticle(color.getRed()),
               rgbToParticle(color.getGreen()),
               rgbToParticle(color.getBlue()),

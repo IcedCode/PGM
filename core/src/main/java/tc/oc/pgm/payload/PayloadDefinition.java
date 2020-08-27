@@ -31,9 +31,8 @@ class PayloadDefinition extends ControllableGoalDefinition {
   /** The height of the payload (detecting players) */
   private final float height;
 
-  private final Vector primaryOwnerGoal; //TODO break if this is not present
-
-  private final Vector secondaryOwnerGoal;
+  /** Determines if the secondary team should be able to push but have no goal */
+  private final boolean secondaryTeamPushButNoGoal;
 
   /** The material(s) of the checkpoint blocks */
   @Nullable private final MaterialMatcher checkpointMaterial;
@@ -79,8 +78,7 @@ class PayloadDefinition extends ControllableGoalDefinition {
           CaptureCondition captureCondition,
           float radius,
           float height,
-          Vector primaryOwnerGoal,
-          Vector secondaryOwnerGoal,
+          boolean secondaryTeamPushButNoGoal,
           @Nullable MaterialMatcher checkpointMaterial,
           @Nullable List<Integer> permanentHeadCheckpoints,
           @Nullable List<Integer> permanentTailCheckpoints,
@@ -108,8 +106,7 @@ class PayloadDefinition extends ControllableGoalDefinition {
     this.secondaryOwner = secondaryOwner;
     this.radius = radius;
     this.height = height;
-    this.primaryOwnerGoal = primaryOwnerGoal;
-    this.secondaryOwnerGoal = secondaryOwnerGoal;
+    this.secondaryTeamPushButNoGoal = secondaryTeamPushButNoGoal;
     this.checkpointMaterial = checkpointMaterial;
     this.permanentHeadCheckpoints = permanentHeadCheckpoints;
     this.permanentTailCheckpoints = permanentTailCheckpoints;
@@ -209,11 +206,7 @@ class PayloadDefinition extends ControllableGoalDefinition {
     return neutralSpeed;
   }
 
-  public Vector getPrimaryOwnerGoal() {
-    return primaryOwnerGoal;
-  }
-
-  public Vector getSecondaryOwnerGoal() {
-    return secondaryOwnerGoal;
+  public boolean shouldSecondaryTeamPushButNoGoal() {
+    return secondaryTeamPushButNoGoal;
   }
 }

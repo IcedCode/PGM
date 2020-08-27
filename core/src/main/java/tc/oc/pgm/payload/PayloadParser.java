@@ -29,8 +29,7 @@ public class PayloadParser {
 
     Vector startingLocation = XMLUtils.parseVector(el.getAttribute("starting-location"));
 
-    Vector primaryOwnerGoal = XMLUtils.parseVector(el.getAttribute("primary-goal"));
-    Vector secondaryOwnerGoal = XMLUtils.parseVector(el.getAttribute("secondary-goal"));
+    boolean shouldSecondaryTeamPushButNoGoal = XMLUtils.parseBoolean(el.getAttribute("secondary-push-nogoal"), false);
 
     float yaw = parseFloat("yaw", 180f);
 
@@ -94,9 +93,7 @@ public class PayloadParser {
         captureCondition,
         radius,
         height,
-        // checkpointMaterials,
-        primaryOwnerGoal,
-        secondaryOwnerGoal,
+        shouldSecondaryTeamPushButNoGoal,
         null,
         permanentHeadCheckpoints,
         permanentTailCheckpoints,

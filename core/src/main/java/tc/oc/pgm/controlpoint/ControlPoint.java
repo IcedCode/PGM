@@ -65,7 +65,7 @@ public class ControlPoint extends ControllableGoal<ControlPointDefinition>
 
     this.blockDisplay = new ControlPointBlockDisplay(match, this);
 
-    setGoalRegion(this.getCaptureRegion());
+    setControllableRegion(this.getCaptureRegion());
   }
 
   public void registerEvents() {

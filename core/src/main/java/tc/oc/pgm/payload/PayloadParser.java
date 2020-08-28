@@ -29,9 +29,11 @@ public class PayloadParser {
 
     Vector startingLocation = XMLUtils.parseVector(el.getAttribute("starting-location"));
 
+    Vector middleLocation = XMLUtils.parseVector(el.getAttribute("middle-location"));
+
     boolean shouldSecondaryTeamPushButNoGoal = XMLUtils.parseBoolean(el.getAttribute("secondary-push-nogoal"), false);
 
-    float yaw = parseFloat("yaw", 180f);
+    float yaw = parseFloat("yaw", 180f); //TODO remove this(not neccesary)
 
     Filter playerPushFilter = filterParser.parseFilterProperty(el, "push-filter");
     Filter playerDominateFilter = filterParser.parseFilterProperty(el, "player-filter");
@@ -85,6 +87,7 @@ public class PayloadParser {
         required,
         visible,
         startingLocation,
+        middleLocation,
         yaw,
         playerPushFilter,
         playerDominateFilter,

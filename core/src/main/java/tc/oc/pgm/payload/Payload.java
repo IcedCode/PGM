@@ -3,7 +3,7 @@ package tc.oc.pgm.payload;
 import com.google.common.collect.ImmutableList;
 import java.time.Duration;
 import java.util.*;
-import java.util.stream.Collectors;
+import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 import net.kyori.text.Component;
 import net.kyori.text.TextComponent;
@@ -11,7 +11,6 @@ import net.kyori.text.TranslatableComponent;
 import net.kyori.text.format.TextColor;
 import org.bukkit.ChatColor;
 import org.bukkit.Color;
-import org.bukkit.DyeColor;
 import org.bukkit.Effect;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -28,6 +27,7 @@ import org.bukkit.event.vehicle.VehicleEnterEvent;
 import org.bukkit.material.MaterialData;
 import org.bukkit.material.Rails;
 import org.bukkit.util.Vector;
+import tc.oc.pgm.api.PGM;
 import tc.oc.pgm.api.match.Match;
 import tc.oc.pgm.api.match.MatchScope;
 import tc.oc.pgm.api.party.Competitor;
@@ -99,7 +99,7 @@ public class Payload extends ControllableGoal<PayloadDefinition>
 
   private final Map<Integer, PayloadCheckpoint> checkpointMap = new HashMap<>();
 
-  private int lastReachedCheckpointKey = Integer.MAX_VALUE; //Starts with
+  private int lastReachedCheckpointKey;
 
   public Payload(Match match, PayloadDefinition definition) {
     super(definition, match);
@@ -107,15 +107,11 @@ public class Payload extends ControllableGoal<PayloadDefinition>
     createPayload();
   }
 
-  public Vector getStartingLocation() {
-    return definition.getStartingLocation();
-  }
-
   // Incrementable
 
   @Override
   public double getCompletion() {
-    return 329;
+    return 0;
   }
 
   @Override
@@ -125,15 +121,11 @@ public class Payload extends ControllableGoal<PayloadDefinition>
 
     render.append("o");
 
-    // This will render where the payload is between the two closest locations important locations
-    // (checkpoints, middle, ends)
-
     if ((currentPath.index() > checkpointMap.get(-1).index()
             && currentPath.index() < checkpointMap.get(0).index())) {
       // Payload is currently between the first checkpoints in each direction
 
       //Render will look like "o---X---o" (any symbol can be switched with the payload symbol)
-
 
       render.append(buildLines(checkpointMap.get(-1).index(), middlePath.index(), 3));
       render.append(currentPath.index() == middlePath.index() ? renderPayloadSymbol() : "X");
@@ -148,16 +140,7 @@ public class Payload extends ControllableGoal<PayloadDefinition>
           render.append(renderPayloadSymbol());
         }
 
-        PayloadCheckpoint other;
-
-        /*if(currentPath.index() <= lastReachedCheckpoint.index()){
-          other = checkpointMap.get(lastReachedCheckpointKey + 1);
-        }
-        else {
-          other = checkpointMap.get(lastReachedCheckpointKey - 1);
-        }*/
-
-        other = checkpointMap.get(lastReachedCheckpointKey + (currentPath.index() <= getLastReachedCheckpoint().index() ? -1 : 1));
+        PayloadCheckpoint other = checkpointMap.get(lastReachedCheckpointKey + (currentPath.index() <= getLastReachedCheckpoint().index() ? -1 : 1));
 
       render.append(buildLines(getLastReachedCheckpoint().index(), other.index(), 6));  //TODO cache this instead of updating every tick? lolol
       }
@@ -367,13 +350,11 @@ public class Payload extends ControllableGoal<PayloadDefinition>
     return newCheckpoint;
   }
 
-  // a = x / r
-  // r = 3, a = x / 3 = 1.8
-  // FIXME wrong formula :facepalm:
   private void tickDisplay() {
     Color color = currentOwner == null ? Color.WHITE : currentOwner.getFullColor();
-    for (double angle = 0, angle2 = 0.6 * definition.getRadius(); angle <= 360; angle += angle2) {
-      Location base =
+    //Each iteration of this loop is one particle
+    for (double angle = 0; angle <= 360; angle += 1.8) {
+      Location particle =
           payloadLocation
               .clone()
               .add(
@@ -385,10 +366,10 @@ public class Payload extends ControllableGoal<PayloadDefinition>
           .getWorld()
           .spigot()
           .playEffect(
-              base,
+              particle,
               Effect.COLOURED_DUST,
-              Material.WOOL.getId(),
-              (byte) 0, //Does not matter?
+              0,
+              (byte) 0,
               rgbToParticle(color.getRed()),
               rgbToParticle(color.getGreen()),
               rgbToParticle(color.getBlue()),
@@ -438,7 +419,6 @@ public class Payload extends ControllableGoal<PayloadDefinition>
     MaterialData payloadBlock = new MaterialData(Material.WOOL);
     payloadBlock.setData(blockData);
     payloadEntity.setDisplayBlock(payloadBlock);
-    // this.payloadEntity.setGravity(false);
     payloadEntity.setMaxSpeed(0);
     payloadEntity.setSlowWhenEmpty(true);
 
@@ -456,7 +436,7 @@ public class Payload extends ControllableGoal<PayloadDefinition>
   }
 
   private void refreshRegion() {
-    setGoalRegion(
+    setControllableRegion(
         new CylindricalRegion(
             payloadLocation.toVector(), definition.getRadius(), definition.getHeight()));
   }
@@ -514,7 +494,7 @@ public class Payload extends ControllableGoal<PayloadDefinition>
   }
 
   protected void makeRail() {
-    final Location location = getStartingLocation().toLocation(getMatch().getWorld());
+    final Location location = definition.getStartingLocation().toLocation(getMatch().getWorld());
 
     // Payload must start on a rail
     if (!isRails(location.getBlock().getType())) {
@@ -626,24 +606,19 @@ public class Payload extends ControllableGoal<PayloadDefinition>
     tailPath = new Path(tailLocation, tail, null);
     tail.setNext(tailPath);
 
-    // Finding the middle path
-    // 99 / 2 = 45 + 4,5 = 49,5 -> middle number is 50, 50 - 49 = 1, 50 + 49 = 99,
-    // 100 /2 = 50 -> middle number is 50,5, 50,5 + 49,5 = 100, 50,5 - 49,5 = 1
+    Location lookingFor = definition.getMiddleLocation().toLocation(match.getWorld()).toCenterLocation();
 
-    // TODO: support rails with even sizes
-    // TODO: test this lol
-    // if(railSize % 2 == 0) match.sendMessage("Payload does not currently support rails with an
-    // even size");
-    double lookingFor = railSize / 2D;
-    lookingFor += 1;
     Path discoverMiddle = tail;
     while (discoverMiddle.hasPrevious()) {
-      if ((double) discoverMiddle.index() == lookingFor) {
+      Location here = discoverMiddle.getLocation().toCenterLocation();
+      if (here.equals(lookingFor)) {
         middlePath = discoverMiddle;
         break;
       }
       discoverMiddle = discoverMiddle.previous();
     }
+
+    if(middlePath == null) match.getLogger().warning("No middle path found");
 
     this.currentPath = middlePath;
 
@@ -785,8 +760,8 @@ public class Payload extends ControllableGoal<PayloadDefinition>
 
             boolean alreadyExists = false;
             while (currentPath.hasPrevious()) {
-              if (equalsVectorCoordinates(
-                  currentPath.getLocation().toVector(), newLocation.toVector())) {
+              if (
+                  currentPath.getLocation().toVector().equals(newLocation.toVector())) {
                 alreadyExists = true;
                 break;
               }
@@ -803,11 +778,6 @@ public class Payload extends ControllableGoal<PayloadDefinition>
       }
     }
     return null;
-  }
-
-  private boolean equalsVectorCoordinates(
-      Vector one, Vector two) { // TODO: replace with Vector.equals() ?
-    return one.getX() == two.getX() && one.getY() == two.getY() && one.getZ() == two.getZ();
   }
 
   // Listener

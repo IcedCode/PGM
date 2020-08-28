@@ -1,6 +1,7 @@
 package tc.oc.pgm.payload;
 
 import java.util.List;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.bukkit.util.Vector;
 import tc.oc.pgm.api.feature.FeatureInfo;
@@ -11,8 +12,12 @@ import tc.oc.pgm.util.material.MaterialMatcher;
 
 @FeatureInfo(name = "payload")
 class PayloadDefinition extends ControllableGoalDefinition {
+
   /** Where the path building starts from(Location of the primary goal) */
   private final Vector startingLocation;
+
+  /** The relative "middle" of the payload path(used for checkpoints and neutral movement)*/
+  private final Vector middleLocation;
 
   /** The direction the Payload spawns */
   private final float yaw;
@@ -70,6 +75,7 @@ class PayloadDefinition extends ControllableGoalDefinition {
           Boolean required,
           boolean visible,
           Vector startingLocation,
+          Vector middleLocation,
           float yaw,
           Filter controlFilter,
           Filter dominateFilter,
@@ -101,6 +107,7 @@ class PayloadDefinition extends ControllableGoalDefinition {
         permanent,
         showProgress);
     this.startingLocation = startingLocation;
+    this.middleLocation = middleLocation;
     this.yaw = yaw;
     this.primaryOwner = primaryOwner;
     this.secondaryOwner = secondaryOwner;
@@ -118,36 +125,16 @@ class PayloadDefinition extends ControllableGoalDefinition {
     this.points = points;
   }
 
-  @Override
-  public String toString() { // TODO: Choose which variables to show
-    return "PayloadDefinition {name="
-        + this.getName()
-        + " friendlySpeed="
-        + this.getPrimaryOwnerSpeed()
-        + " friendlySpeedMultiplier="
-        + this.getPrimaryOwnerSpeedMultiplier()
-        + " enemySpeed="
-        + this.getSecondaryOwnerSpeed()
-        + " enemySpeedMultiplier="
-        + this.getSecondaryOwnerSpeedMultiplier()
-        + " owner="
-        + this.primaryOwner
-        + " captureCondition="
-        + this.getCaptureCondition()
-        + " controlFilter="
-        + this.getControlFilter()
-        + " dominateFilter="
-        + this.getDominateFilter()
-        + " visible="
-        + this.isVisible();
-  }
-
   public float getYaw() {
     return this.yaw;
   }
 
   public Vector getStartingLocation() {
     return this.startingLocation;
+  }
+
+  public Vector getMiddleLocation() {
+    return middleLocation;
   }
 
   public float getRadius() {
@@ -208,5 +195,27 @@ class PayloadDefinition extends ControllableGoalDefinition {
 
   public boolean shouldSecondaryTeamPushButNoGoal() {
     return secondaryTeamPushButNoGoal;
+  }
+
+  @Override
+  public String toString() {
+    return "PayloadDefinition{" +
+            "startingLocation=" + startingLocation +
+            ", yaw=" + yaw +
+            ", primaryOwner=" + primaryOwner +
+            ", secondaryOwner=" + secondaryOwner +
+            ", radius=" + radius +
+            ", height=" + height +
+            ", secondaryTeamPushButNoGoal=" + secondaryTeamPushButNoGoal +
+            ", checkpointMaterial=" + checkpointMaterial +
+            ", permanentHeadCheckpoints=" + permanentHeadCheckpoints +
+            ", permanentTailCheckpoints=" + permanentTailCheckpoints +
+            ", primaryOwnerSpeed=" + primaryOwnerSpeed +
+            ", primaryOwnerSpeedMultiplier=" + primaryOwnerSpeedMultiplier +
+            ", secondaryOwnerSpeed=" + secondaryOwnerSpeed +
+            ", secondaryOwnerSpeedMultiplier=" + secondaryOwnerSpeedMultiplier +
+            ", neutralSpeed=" + neutralSpeed +
+            ", points=" + points +
+            '}';
   }
 }

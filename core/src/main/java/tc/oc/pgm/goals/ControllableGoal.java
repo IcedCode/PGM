@@ -12,24 +12,21 @@ import tc.oc.pgm.api.party.Competitor;
 import tc.oc.pgm.api.player.MatchPlayer;
 import tc.oc.pgm.api.region.Region;
 import tc.oc.pgm.api.time.Tick;
-import tc.oc.pgm.payload.ControllableGoalPlayerTracker;
+import tc.oc.pgm.regions.RegionPlayerTracker;
 import tc.oc.pgm.util.TimeUtils;
 import tc.oc.pgm.util.collection.DefaultMapAdapter;
 
 public abstract class ControllableGoal<T extends ControllableGoalDefinition> extends SimpleGoal<T>
     implements Tickable {
 
-  protected final ControllableGoalPlayerTracker<T> playerTracker;
+  protected final RegionPlayerTracker playerTracker;
 
-  // The region that can be controlled belonging to this goal
-  // TODO rephrase
-  protected Region goalRegion;
+  protected Region controllableRegion;
 
   public ControllableGoal(T definition, Match match) {
     super(definition, match);
-    playerTracker = new ControllableGoalPlayerTracker<>(match, this);
+    playerTracker = new RegionPlayerTracker(match, controllableRegion);
     match.addTickable(this, MatchScope.RUNNING);
-    match.addListener(playerTracker, MatchScope.RUNNING);
   }
 
   private final Duration tick = Duration.ofMillis(TimeUtils.TICK);
@@ -50,7 +47,7 @@ public abstract class ControllableGoal<T extends ControllableGoalDefinition> ext
     // team
     int defenderCount = 0;
 
-    for (MatchPlayer player : playerTracker.getPlayersOnGoal()) {
+    for (MatchPlayer player : playerTracker.getPlayersInRegion()) {
       Competitor team = player.getCompetitor();
       if (canContest(player)) {
         defenderCount++;
@@ -115,16 +112,16 @@ public abstract class ControllableGoal<T extends ControllableGoalDefinition> ext
   }
 
   // The region can change during the match
-  protected void setGoalRegion(Region region) {
-    this.goalRegion = region;
-    playerTracker.updateNearbyPlayersManual();
+  protected void setControllableRegion(Region region) {
+    this.controllableRegion = region;
+    playerTracker.setRegion(region);
   }
 
-  public Region getGoalRegion() {
-    return goalRegion;
+  public Region getControllableRegion() {
+    return controllableRegion;
   }
 
   public Set<MatchPlayer> getPlayersOnGoal() {
-    return playerTracker.getPlayersOnGoal();
+    return playerTracker.getPlayersInRegion();
   }
 }

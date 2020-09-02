@@ -8,6 +8,7 @@ import java.util.List;
 import javax.annotation.Nonnull;
 import tc.oc.pgm.api.match.Match;
 import tc.oc.pgm.api.party.Competitor;
+import tc.oc.pgm.payload.Payload;
 
 /** A measurement of progress towards completing goals in a match */
 public class GoalProgress implements Comparable<GoalProgress> {
@@ -104,6 +105,9 @@ public class GoalProgress implements Comparable<GoalProgress> {
               // A touched, non-incremental goal is worth 50% completion
               progress.add(0.5);
             }
+          }else if(goal instanceof IncrementalGoal){ //FIXME not logical logic
+            double completion = ((Payload) goal).getCompletion(competitor);
+            if(completion > 0) progress.add(completion);
           }
         }
       }

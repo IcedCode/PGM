@@ -5,7 +5,7 @@ import org.bukkit.Location;
 import java.util.Comparator;
 
 public class Path implements Comparable<Path>{
-  public final int index;
+  private final int index;
   private final Location location;
   private Path previousPath;
   private Path nextPath;

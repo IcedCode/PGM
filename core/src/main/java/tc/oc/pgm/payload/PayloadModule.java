@@ -17,6 +17,7 @@ import tc.oc.pgm.api.match.Match;
 import tc.oc.pgm.api.match.MatchModule;
 import tc.oc.pgm.api.module.exception.ModuleLoadException;
 import tc.oc.pgm.goals.GoalMatchModule;
+import tc.oc.pgm.teams.TeamMatchModule;
 import tc.oc.pgm.teams.TeamModule;
 import tc.oc.pgm.util.xml.InvalidXMLException;
 import tc.oc.pgm.util.xml.XMLUtils;
@@ -31,7 +32,7 @@ public class PayloadModule implements MapModule<PayloadMatchModule> {
 
   @Override
   public Collection<Class<? extends MatchModule>> getSoftDependencies() {
-    return ImmutableList.of(GoalMatchModule.class);
+    return ImmutableList.of(GoalMatchModule.class, TeamMatchModule.class);
   }
 
   @Nullable

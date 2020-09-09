@@ -11,7 +11,6 @@ import tc.oc.pgm.goals.GoalMatchModule;
 import tc.oc.pgm.goals.ProximityGoal;
 import tc.oc.pgm.goals.ProximityMetric;
 import tc.oc.pgm.goals.TouchableGoal;
-import tc.oc.pgm.payload.Payload;
 import tc.oc.pgm.teams.Team;
 import tc.oc.pgm.teams.TeamMatchModule;
 import tc.oc.pgm.util.text.TextException;
@@ -67,8 +66,6 @@ public final class ProximityCommand {
                       + String.format("%.2f", proximity.getMinimumDistance(team));
             }
           }
-
-
 
           lines.add(line);
         }

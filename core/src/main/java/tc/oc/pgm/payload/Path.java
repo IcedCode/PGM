@@ -2,9 +2,7 @@ package tc.oc.pgm.payload;
 
 import org.bukkit.Location;
 
-import java.util.Comparator;
-
-public class Path implements Comparable<Path>{
+public class Path {
   private final int index;
   private final Location location;
   private Path previousPath;
@@ -65,11 +63,5 @@ public class Path implements Comparable<Path>{
 
   public boolean isCheckpoint() {
     return checkpoint;
-  }
-
-  @Override
-  public int compareTo(Path o) { //TODO: Switch out all the .getIndex comparisons with Comparable
-    Integer.compare(index, o.index());
-    return Comparator.comparingInt(Path::index).compare(this, o);
   }
 }

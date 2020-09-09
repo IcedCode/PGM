@@ -1,7 +1,6 @@
 package tc.oc.pgm.payload;
 
 import java.util.List;
-import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.bukkit.util.Vector;
 import tc.oc.pgm.api.feature.FeatureInfo;
@@ -16,20 +15,15 @@ class PayloadDefinition extends ControllableGoalDefinition {
   /** Where the path building starts from(Location of the primary goal) */
   private final Vector startingLocation;
 
-  /** The relative "middle" of the payload path(used for checkpoints and neutral movement)*/
+  /** The relative "middle" of the payload path(used for checkpoints and neutral movement) */
   private final Vector middleLocation;
-
-  /** The direction the Payload spawns */
-  private final float yaw;
 
   /** The primary owner, pushed toward the primary goal */
   private final TeamFactory primaryOwner;
 
   // The optional secondary owner, if present they push towards the secondary goal
-  @Nullable
-  private final TeamFactory secondaryOwner;
+  @Nullable private final TeamFactory secondaryOwner;
 
-  // TODO: Make the payload accept any region
   /** The radius of the payload (detecting players) */
   private final float radius;
 
@@ -70,32 +64,31 @@ class PayloadDefinition extends ControllableGoalDefinition {
   private final float points;
 
   PayloadDefinition(
-          String id,
-          String name,
-          Boolean required,
-          boolean visible,
-          Vector startingLocation,
-          Vector middleLocation,
-          float yaw,
-          Filter controlFilter,
-          Filter dominateFilter,
-          TeamFactory primaryOwner,
-          @Nullable TeamFactory secondaryOwner,
-          CaptureCondition captureCondition,
-          float radius,
-          float height,
-          boolean secondaryTeamPushButNoGoal,
-          @Nullable MaterialMatcher checkpointMaterial,
-          @Nullable List<Integer> permanentHeadCheckpoints,
-          @Nullable List<Integer> permanentTailCheckpoints,
-          float primaryOwnerSpeed,
-          float primaryOwnerSpeedMultiplier,
-          float secondaryOwnerSpeed,
-          float secondaryOwnerSpeedMultiplier,
-          float neutralSpeed,
-          boolean permanent,
-          float points,
-          boolean showProgress) {
+      String id,
+      String name,
+      Boolean required,
+      boolean visible,
+      Vector startingLocation,
+      Vector middleLocation,
+      Filter controlFilter,
+      Filter dominateFilter,
+      TeamFactory primaryOwner,
+      @Nullable TeamFactory secondaryOwner,
+      CaptureCondition captureCondition,
+      float radius,
+      float height,
+      boolean secondaryTeamPushButNoGoal,
+      @Nullable MaterialMatcher checkpointMaterial,
+      @Nullable List<Integer> permanentHeadCheckpoints,
+      @Nullable List<Integer> permanentTailCheckpoints,
+      float primaryOwnerSpeed,
+      float primaryOwnerSpeedMultiplier,
+      float secondaryOwnerSpeed,
+      float secondaryOwnerSpeedMultiplier,
+      float neutralSpeed,
+      boolean permanent,
+      float points,
+      boolean showProgress) {
     super(
         id,
         name,
@@ -108,7 +101,6 @@ class PayloadDefinition extends ControllableGoalDefinition {
         showProgress);
     this.startingLocation = startingLocation;
     this.middleLocation = middleLocation;
-    this.yaw = yaw;
     this.primaryOwner = primaryOwner;
     this.secondaryOwner = secondaryOwner;
     this.radius = radius;
@@ -123,10 +115,6 @@ class PayloadDefinition extends ControllableGoalDefinition {
     this.secondaryOwnerSpeedMultiplier = secondaryOwnerSpeedMultiplier;
     this.neutralSpeed = neutralSpeed;
     this.points = points;
-  }
-
-  public float getYaw() {
-    return this.yaw;
   }
 
   public Vector getStartingLocation() {
@@ -199,23 +187,37 @@ class PayloadDefinition extends ControllableGoalDefinition {
 
   @Override
   public String toString() {
-    return "PayloadDefinition{" +
-            "startingLocation=" + startingLocation +
-            ", yaw=" + yaw +
-            ", primaryOwner=" + primaryOwner +
-            ", secondaryOwner=" + secondaryOwner +
-            ", radius=" + radius +
-            ", height=" + height +
-            ", secondaryTeamPushButNoGoal=" + secondaryTeamPushButNoGoal +
-            ", checkpointMaterial=" + checkpointMaterial +
-            ", permanentHeadCheckpoints=" + permanentHeadCheckpoints +
-            ", permanentTailCheckpoints=" + permanentTailCheckpoints +
-            ", primaryOwnerSpeed=" + primaryOwnerSpeed +
-            ", primaryOwnerSpeedMultiplier=" + primaryOwnerSpeedMultiplier +
-            ", secondaryOwnerSpeed=" + secondaryOwnerSpeed +
-            ", secondaryOwnerSpeedMultiplier=" + secondaryOwnerSpeedMultiplier +
-            ", neutralSpeed=" + neutralSpeed +
-            ", points=" + points +
-            '}';
+    return "PayloadDefinition{"
+        + "startingLocation="
+        + startingLocation
+        + ", primaryOwner="
+        + primaryOwner
+        + ", secondaryOwner="
+        + secondaryOwner
+        + ", radius="
+        + radius
+        + ", height="
+        + height
+        + ", secondaryTeamPushButNoGoal="
+        + secondaryTeamPushButNoGoal
+        + ", checkpointMaterial="
+        + checkpointMaterial
+        + ", permanentHeadCheckpoints="
+        + permanentHeadCheckpoints
+        + ", permanentTailCheckpoints="
+        + permanentTailCheckpoints
+        + ", primaryOwnerSpeed="
+        + primaryOwnerSpeed
+        + ", primaryOwnerSpeedMultiplier="
+        + primaryOwnerSpeedMultiplier
+        + ", secondaryOwnerSpeed="
+        + secondaryOwnerSpeed
+        + ", secondaryOwnerSpeedMultiplier="
+        + secondaryOwnerSpeedMultiplier
+        + ", neutralSpeed="
+        + neutralSpeed
+        + ", points="
+        + points
+        + '}';
   }
 }

@@ -105,9 +105,9 @@ public class GoalProgress implements Comparable<GoalProgress> {
               // A touched, non-incremental goal is worth 50% completion
               progress.add(0.5);
             }
-          }else if(goal instanceof IncrementalGoal){ //FIXME not logical logic
+          } else if (goal instanceof IncrementalGoal) { // FIXME not logical logic
             double completion = ((Payload) goal).getCompletion(competitor);
-            if(completion > 0) progress.add(completion);
+            if (completion > 0) progress.add(completion);
           }
         }
       }

@@ -1,9 +1,9 @@
 package tc.oc.pgm.payload;
 
-public class PayloadCheckpoint{
+public class PayloadCheckpoint {
 
   private final int index;
-  private final int mapIndex; //Self aware of their index in the map they are stored in
+  private final int mapIndex; // Self aware of their index in the map they are stored in
   private final boolean permanent;
 
   PayloadCheckpoint(int index, int mapIndex, boolean permanent) {
@@ -16,7 +16,9 @@ public class PayloadCheckpoint{
     return index;
   }
 
-  public int getMapIndex() { return mapIndex; }
+  public int getMapIndex() {
+    return mapIndex;
+  }
 
   public boolean isPermanent() {
     return permanent;

@@ -1,7 +1,6 @@
 package tc.oc.pgm.payload;
 
 import com.google.common.collect.ImmutableList;
-
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.time.Duration;
@@ -21,7 +20,6 @@ import org.bukkit.block.BlockFace;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Minecart;
 import org.bukkit.event.EventHandler;
-import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.vehicle.VehicleDamageEvent;
 import org.bukkit.event.vehicle.VehicleDestroyEvent;
@@ -38,6 +36,7 @@ import tc.oc.pgm.goals.IncrementalGoal;
 import tc.oc.pgm.goals.events.GoalCompleteEvent;
 import tc.oc.pgm.goals.events.GoalStatusChangeEvent;
 import tc.oc.pgm.regions.CylindricalRegion;
+import tc.oc.pgm.score.ScoreMatchModule;
 import tc.oc.pgm.teams.Team;
 import tc.oc.pgm.teams.TeamMatchModule;
 import tc.oc.pgm.util.bukkit.BukkitUtils;
@@ -68,7 +67,6 @@ public class Payload extends ControllableGoal<PayloadDefinition>
   public static final String SYMBOL_PAYLOAD_NEUTRAL = "\u29be"; // ⦾
   public static final String SYMBOL_PAYLOAD_PUSHING = "\u2794"; // ➔
 
-
   // The team that currently owns the payload
   // Teams that can not push the payload CAN be the owner
   // Is null if no players nearby
@@ -80,18 +78,18 @@ public class Payload extends ControllableGoal<PayloadDefinition>
   private Minecart payloadEntity;
   private ArmorStand labelEntity;
 
-  //The final path in their respective direction
+  // The final path in their respective direction
   private Path headPath;
   private Path tailPath;
 
-  //The current whereabouts of the payload
+  // The current whereabouts of the payload
   private Path currentPath;
   private Location payloadLocation;
 
   // The path the payload goes towards in the neutral state, the path the payload starts on;
   private Path middlePath;
 
-  //Two paths used to store furthest progression in each direction
+  // Two paths used to store furthest progression in each direction
   private Path furthestHeadPath;
   private Path furthestTailPath;
 
@@ -104,34 +102,37 @@ public class Payload extends ControllableGoal<PayloadDefinition>
   private final TeamMatchModule tmm;
   private Competitor leadingTeam;
 
-
   public Payload(Match match, PayloadDefinition definition) {
     super(definition, match);
 
     tmm = match.needModule(TeamMatchModule.class);
+
+    match.addListener(this, MatchScope.RUNNING);
 
     createPayload();
   }
 
   // Incrementable
 
-  @Override //Returns the leading completion as a number between 0 and 1
+  @Override // Returns the leading completion as a number between 0 and 1
   public double getCompletion() {
     return getCompletion(leadingTeam);
   }
 
-  final static NumberFormat COMPLETION_FORMAT = DecimalFormat.getPercentInstance(Locale.US);
+  static final NumberFormat COMPLETION_FORMAT = DecimalFormat.getPercentInstance(Locale.US);
 
   @Override
   public String renderCompletion() {
-   return (leadingTeam == null ? COLOR_NEUTRAL_TEAM : leadingTeam.getColor())
-           + "" + COMPLETION_FORMAT.format(getCompletion())
-           + "" + ChatColor.RESET
-           + " "
-           + COMPLETION_FORMAT.format(getCurrentCompletion());
+    return (leadingTeam == null ? COLOR_NEUTRAL_TEAM : leadingTeam.getColor())
+        + ""
+        + COMPLETION_FORMAT.format(getCompletion())
+        + ""
+        + ChatColor.RESET
+        + " "
+        + COMPLETION_FORMAT.format(getCurrentCompletion());
   }
 
-  private PayloadCheckpoint getLastReachedCheckpoint(){
+  private PayloadCheckpoint getLastReachedCheckpoint() {
     return checkpointMap.get(lastReachedCheckpointKey);
   }
 
@@ -144,53 +145,50 @@ public class Payload extends ControllableGoal<PayloadDefinition>
   }
 
 
-  /**
-   * Gets a completion for this goal
-   * @param competitor The {@link Competitor} that this method will check the completion for
-   * @return the completion as a number between 0 and 1
-   */
   public double getCompletion(Competitor competitor) {
 
-    //The total amount of rails from the middle to the relevant goal
+    // The total amount of rails from the middle to the relevant goal
     int total = 0;
-    //The amount of rails this team has progressed from the middle towards the relevant goal
+    // The amount of rails this team has progressed from the middle towards the relevant goal
     int progress = 0;
 
-    if(tmm.getTeam(definition.getPrimaryOwner()) == competitor){
+    if (tmm.getTeam(definition.getPrimaryOwner()) == competitor) {
       total = railSize - middlePath.index();
       progress = (furthestHeadPath.index() - middlePath.index());
 
-    }else if(definition.getSecondaryOwner() != null && tmm.getTeam(definition.getSecondaryOwner()) == competitor){
+    } else if (definition.getSecondaryOwner() != null
+        && tmm.getTeam(definition.getSecondaryOwner()) == competitor) {
       total = middlePath.index();
       progress = middlePath.index() - furthestTailPath.index();
     }
 
-    if(total == 0 || progress == 0) return 0;
+    if (total == 0 || progress == 0) return 0;
 
     return progress / (double) total;
   }
 
   /**
    * Gets the completion towards the closest end
+   *
    * @return the completion as a number between 0 and 1
    */
-  public double getCurrentCompletion(){
-    if(currentPath.index() == middlePath.index()) return 0;
-    return (currentPath.index() > middlePath.index() ?
-            (currentPath.index() - middlePath.index()) / (double) (railSize - middlePath.index()) :
-            (middlePath.index() - currentPath.index()) / (double) middlePath.index());
+  public double getCurrentCompletion() {
+    if (currentPath.index() == middlePath.index()) return 0;
+    return (currentPath.index() > middlePath.index()
+        ? (currentPath.index() - middlePath.index()) / (double) (railSize - middlePath.index())
+        : (middlePath.index() - currentPath.index()) / (double) middlePath.index());
   }
 
   //
 
   @Override
-  public boolean canComplete(
-      Competitor
-          team) {
+  public boolean canComplete(Competitor team) {
     if (team instanceof Team)
       return ((Team) team).isInstance(definition.getPrimaryOwner())
           || (((Team) team).isInstance(definition.getSecondaryOwner())
-              && !definition.shouldSecondaryTeamPushButNoGoal()); //If they have no goal they cant complete anything
+              && !definition
+                  .shouldSecondaryTeamPushButNoGoal()); // If they have no goal they cant complete
+                                                        // anything
     return false;
   }
 
@@ -218,8 +216,8 @@ public class Payload extends ControllableGoal<PayloadDefinition>
     return (isNeutral()
             ? COLOR_NEUTRAL_TEAM + SYMBOL_PAYLOAD_NEUTRAL + ChatColor.GRAY
             : currentOwner.getColor() + SYMBOL_PAYLOAD_PUSHING + ChatColor.GRAY)
-            + " "
-            + renderCompletion();
+        + " "
+        + renderCompletion();
   }
 
   public ChatColor renderSidebarLabelColor(@Nullable Competitor competitor, Party viewer) {
@@ -230,7 +228,7 @@ public class Payload extends ControllableGoal<PayloadDefinition>
 
   @Override
   public void dominationCycle(@Nullable Competitor dominatingTeam, int lead, Duration duration) {
-    currentOwner = dominatingTeam;
+    currentOwner = dominatingTeam; // The team that completes the CaptureCondition
   }
 
   // Stuff done each tick //FIXME dont be yanderedev pls
@@ -240,8 +238,10 @@ public class Payload extends ControllableGoal<PayloadDefinition>
     if (isCompleted()) return; // Freeze if completed
 
     tickDisplay();
+
     tickMove();
-    if(updateProx()) leadingTeam = currentOwner;
+
+    if (updateProx()) leadingTeam = currentOwner;
 
     match.callEvent(new GoalStatusChangeEvent(match, this));
   }
@@ -252,27 +252,25 @@ public class Payload extends ControllableGoal<PayloadDefinition>
 
     final float points = definition.getPoints();
 
-    if ((isUnderPrimaryOwnerControl() ? !currentPath.hasNext() : !currentPath.hasPrevious()) && !(!isUnderPrimaryOwnerControl() && definition.shouldSecondaryTeamPushButNoGoal())) {
-        completed = true;
-        match.callEvent(new GoalCompleteEvent(match, this, currentOwner, true));
-        match.sendMessage(
-            TextComponent.of(
-                currentOwner.getNameLegacy() + " Completed the goal 8)", TextColor.GOLD));
+    // Check if the payload has reached a finish
+    if ((isUnderPrimaryOwnerControl() ? !currentPath.hasNext() : !currentPath.hasPrevious())
+        && !(!isUnderPrimaryOwnerControl() && definition.shouldSecondaryTeamPushButNoGoal())) {
+      completed = true;
+      match.callEvent(new GoalCompleteEvent(match, this, currentOwner, true));
+      match.sendMessage(
+          TextComponent.of(
+              currentOwner.getNameLegacy() + " Completed the goal 8)", TextColor.GOLD));
 
-       /* final ScoreMatchModule smm = match.needModule(ScoreMatchModule.class);
-        if (smm != null) {
-          if (currentOwner != null) smm.incrementScore(currentOwner, points);*/
+      final ScoreMatchModule smm = match.needModule(ScoreMatchModule.class);
+      if (smm != null) { // Increment points if the score module is present(default is 0)
+        if (currentOwner != null) smm.incrementScore(currentOwner, points);
         return;
+      }
     }
 
-
     speed = Math.abs(speed);
+    if (speed == 0) return; // Mostly for if neutral speed is 0
     move(speed / 10.0);
-
-    Location labelLocation = payloadEntity.getLocation().clone();
-    labelLocation.setY(labelLocation.getY() - 0.2);
-    labelEntity.teleport(labelLocation);
-
   }
 
   private void move(double distance) {
@@ -281,46 +279,21 @@ public class Payload extends ControllableGoal<PayloadDefinition>
       return;
     }
 
-    if (currentPath.isCheckpoint()
-        && (getLastReachedCheckpoint() == null
-            || currentPath.index() != getLastReachedCheckpoint().index())) {
-      PayloadCheckpoint newCheckpoint;
-
-      newCheckpoint = calculateCheckpointContext();
-
-      if (newCheckpoint == null) return;
-
-      if (getLastReachedCheckpoint() != newCheckpoint) {
-
-        lastReachedCheckpointKey = newCheckpoint.getMapIndex();
-
-        final Component message =
-            TranslatableComponent.of(
-                "payloadCheckpoint",
-                TextColor.GRAY,
-                currentOwner == null
-                    ? TextComponent.of("Unknown", TextColor.DARK_AQUA)
-                    : currentOwner.getName(), // Put in the owner of the checkpoint
-                TextComponent.of(Math.abs(0)));
-        match.sendMessage(message);
-      }
-
-    }
-
-    if (currentPath.isCheckpoint() && getLastReachedCheckpoint() != null) {
-      if (isUnderPrimaryOwnerControl()
-          && getLastReachedCheckpoint().index() < middlePath.index()
-          && getLastReachedCheckpoint().isPermanent()) {
-        return;
-      }
-      if (isUnderSecondaryOwnerControl()
-          && getLastReachedCheckpoint().index() > middlePath.index()
-          && getLastReachedCheckpoint().isPermanent()) {
-        return;
-      }
-    }
-
+    // Dont try to do neutral moving if the payload has reached the middle
     if (currentPath.index() == middlePath.index() && isNeutral()) return;
+
+    // If the current Path is a checkpoint
+    if (currentPath.isCheckpoint()) {
+      // AND it is not the same checkpoint as the last one reached
+      if (getLastReachedCheckpoint() == null
+          || currentPath.index() != getLastReachedCheckpoint().index())
+        // then refresh the lastReachedCheckpointKey
+        calculateCheckpointContext();
+
+      // If its permanent and trying to move the wrong way..
+      // Stop it!!
+      if (hasPayloadHitPermanentCheckpoint()) return;
+    }
 
     Path nextPath = getControllingTeamPath();
     Vector direction = nextPath.getLocation().toVector().subtract(payloadLocation.toVector());
@@ -331,25 +304,63 @@ public class Payload extends ControllableGoal<PayloadDefinition>
       move(extraLen);
     } else payloadLocation.add(direction.multiply(distance / len));
 
+    // Actually move the payload
     payloadEntity.teleport(payloadLocation);
 
+    // Also remember to move the label ArmorStand
+    Location labelLocation = payloadEntity.getLocation().clone();
+    labelLocation.setY(labelLocation.getY() - 0.2);
+    labelEntity.teleport(labelLocation);
+
+    // Tell the tracker that the region has moved
     refreshRegion();
   }
 
-  private PayloadCheckpoint calculateCheckpointContext() {
-    PayloadCheckpoint newCheckpoint = null;
+  private void calculateCheckpointContext() {
+    PayloadCheckpoint newCheckpoint;
 
-      for (PayloadCheckpoint checkpoint : checkpointMap.values()){
-        if (currentPath.index() == checkpoint.index()){
-          newCheckpoint = checkpoint;
-        }
+    newCheckpoint = null;
+
+    for (PayloadCheckpoint checkpoint : checkpointMap.values()) {
+      if (currentPath.index() == checkpoint.index()) {
+        newCheckpoint = checkpoint;
       }
-    return newCheckpoint;
+    }
+
+    if (newCheckpoint == null) return;
+
+    if (getLastReachedCheckpoint() != newCheckpoint) {
+
+      lastReachedCheckpointKey = newCheckpoint.getMapIndex();
+
+      final Component message =
+          TranslatableComponent.of(
+              "payloadCheckpoint",
+              TextColor.GRAY,
+              currentOwner == null
+                  ? TextComponent.of("Unknown", TextColor.DARK_AQUA)
+                  : currentOwner.getName(), // Put in the owner of the checkpoint
+              TextComponent.of(Math.abs(0)));
+      match.sendMessage(message);
+    }
+  }
+
+  private boolean hasPayloadHitPermanentCheckpoint() {
+    if (getLastReachedCheckpoint() != null) {
+
+      return (isUnderPrimaryOwnerControl()
+              && getLastReachedCheckpoint().index() < middlePath.index()
+              && getLastReachedCheckpoint().isPermanent())
+          || (isUnderSecondaryOwnerControl()
+              && getLastReachedCheckpoint().index() > middlePath.index()
+              && getLastReachedCheckpoint().isPermanent());
+    }
+    return false; // No checkpoint has been hit yet
   }
 
   private void tickDisplay() {
     Color color = isNeutral() ? Color.WHITE : currentOwner.getFullColor();
-    //Each iteration of this loop is one particle
+    // Each iteration of this loop is one particle
     for (double angle = 0; angle <= 360; angle += 3.6) {
       Location particle =
           payloadLocation
@@ -388,14 +399,16 @@ public class Payload extends ControllableGoal<PayloadDefinition>
   }
 
   private boolean updateProx() {
-    if(currentPath.index() > middlePath.index()){
-      if(furthestHeadPath == null || currentPath.index() > furthestHeadPath.index()){
+    if (currentPath.index() > middlePath.index()) {
+      if (furthestHeadPath == null || currentPath.index() > furthestHeadPath.index()) {
         furthestHeadPath = currentPath;
-        return furthestHeadPath.index() - middlePath.index() > middlePath.index() - furthestTailPath.index();
+        return furthestHeadPath.index() - middlePath.index()
+            > middlePath.index() - furthestTailPath.index();
       }
-    }else if(furthestTailPath == null || currentPath.index() < furthestTailPath.index()){
+    } else if (furthestTailPath == null || currentPath.index() < furthestTailPath.index()) {
       furthestTailPath = currentPath;
-      return furthestHeadPath.index() - middlePath.index() < middlePath.index() - furthestTailPath.index();
+      return furthestHeadPath.index() - middlePath.index()
+          < middlePath.index() - furthestTailPath.index();
     }
 
     return false;
@@ -421,12 +434,9 @@ public class Payload extends ControllableGoal<PayloadDefinition>
 
     // Spawn the Payload entity
     Location spawn = minecartSpawn.clone();
-    spawn.setYaw(definition.getYaw());
     payloadEntity = minecartSpawn.getWorld().spawn(spawn, Minecart.class);
-    ChatColor color = currentOwner != null ? currentOwner.getColor() : COLOR_NEUTRAL_TEAM; //TODO: Payload can never be owned at this state?
-    byte blockData = BukkitUtils.chatColorToDyeColor(color).getWoolData();
     MaterialData payloadBlock = new MaterialData(Material.WOOL);
-    payloadBlock.setData(blockData);
+    payloadBlock.setData((byte) 0);
     payloadEntity.setDisplayBlock(payloadBlock);
     payloadEntity.setMaxSpeed(0);
     payloadEntity.setSlowWhenEmpty(true);
@@ -457,7 +467,7 @@ public class Payload extends ControllableGoal<PayloadDefinition>
       if (isUnderSecondaryOwnerControl()) return currentPath.previous();
     }
 
-    return (currentPath.index() > middlePath.index()) //Payload moves towards middle when neutral
+    return (currentPath.index() > middlePath.index()) // Payload moves towards middle when neutral
         ? currentPath.next()
         : currentPath.previous();
   }
@@ -487,16 +497,6 @@ public class Payload extends ControllableGoal<PayloadDefinition>
 
   private boolean isNeutral() {
     return currentOwner == null;
-  }
-
-  public void registerEvents() {
-    match.addListener(playerTracker, MatchScope.RUNNING);
-    match.addListener(this, MatchScope.RUNNING);
-  }
-
-  public void unregisterEvents() {
-    HandlerList.unregisterAll(playerTracker); //TODO necessary?
-    HandlerList.unregisterAll(this);
   }
 
   protected void makeRail() {
@@ -612,7 +612,8 @@ public class Payload extends ControllableGoal<PayloadDefinition>
     tailPath = new Path(tailLocation, tail, null);
     tail.setNext(tailPath);
 
-    Location lookingFor = definition.getMiddleLocation().toLocation(match.getWorld()).toCenterLocation();
+    Location lookingFor =
+        definition.getMiddleLocation().toLocation(match.getWorld()).toCenterLocation();
 
     Path discoverMiddle = tail;
     while (discoverMiddle.hasPrevious()) {
@@ -624,7 +625,7 @@ public class Payload extends ControllableGoal<PayloadDefinition>
       discoverMiddle = discoverMiddle.previous();
     }
 
-    if(middlePath == null) match.getLogger().warning("No middle path found");
+    if (middlePath == null) match.getLogger().warning("No middle path found");
 
     this.currentPath = middlePath;
 
@@ -651,7 +652,7 @@ public class Payload extends ControllableGoal<PayloadDefinition>
       discoverCheckpoints = discoverCheckpoints.next();
     }
 
-    //Adding the goal as a checkpoint for sidebar progress rendering
+    // Adding the goal as a checkpoint for sidebar progress rendering
     checkpointMap.put(h, new PayloadCheckpoint(discoverCheckpoints.index(), h, false));
 
     discoverCheckpoints = middlePath; // Reset
@@ -664,14 +665,15 @@ public class Payload extends ControllableGoal<PayloadDefinition>
       if (potentialCheckpoint.isCheckpoint()) {
         int index = potentialCheckpoint.index();
         boolean permanent = false;
-        if (permanentTail != null) permanent = permanentTail.contains(checkpointMap.size() - offset + 1);
+        if (permanentTail != null)
+          permanent = permanentTail.contains(checkpointMap.size() - offset + 1);
         checkpointMap.put(t, new PayloadCheckpoint(index, t, permanent));
         t--;
       }
       discoverCheckpoints = discoverCheckpoints.previous();
     }
 
-    //Adding the goal as a checkpoint for sidebar progress rendering
+    // Adding the goal as a checkpoint for sidebar progress rendering
     checkpointMap.put(t, new PayloadCheckpoint(discoverCheckpoints.index(), t, false));
   }
 
@@ -769,8 +771,7 @@ public class Payload extends ControllableGoal<PayloadDefinition>
 
             boolean alreadyExists = false;
             while (currentPath.hasPrevious()) {
-              if (
-                  currentPath.getLocation().toVector().equals(newLocation.toVector())) {
+              if (currentPath.getLocation().toVector().equals(newLocation.toVector())) {
                 alreadyExists = true;
                 break;
               }
@@ -806,5 +807,4 @@ public class Payload extends ControllableGoal<PayloadDefinition>
   public void onVehicleDestroy(final VehicleDestroyEvent event) {
     if (event.getVehicle() == payloadEntity) event.setCancelled(true);
   }
-
 }

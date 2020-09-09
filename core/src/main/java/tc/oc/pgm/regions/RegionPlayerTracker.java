@@ -13,17 +13,12 @@ import tc.oc.pgm.api.match.Match;
 import tc.oc.pgm.api.match.MatchScope;
 import tc.oc.pgm.api.player.MatchPlayer;
 import tc.oc.pgm.api.region.Region;
-import tc.oc.pgm.goals.ControllableGoal;
-import tc.oc.pgm.goals.ControllableGoalDefinition;
 import tc.oc.pgm.spawns.events.ParticipantDespawnEvent;
 import tc.oc.pgm.util.MatchPlayers;
 
-/**
- * Keeps track of players in the given {@link Region}
- */
-public class RegionPlayerTracker
-    implements Listener {
-  final private Match match;
+/** Keeps track of players in the given {@link Region} */
+public class RegionPlayerTracker implements Listener {
+  private final Match match;
   private Region region;
   private final Set<MatchPlayer> players = new HashSet<>();
 
@@ -52,7 +47,7 @@ public class RegionPlayerTracker
     this.handlePlayerMove(event.getPlayer(), event.getTo().toVector());
   }
 
-  //Used when moving regions to prevent players standing still staying in the region forever
+  // Used when moving regions to prevent players standing still staying in the region forever
   public void updateNearbyPlayersManual() {
     match
         .getPlayers()

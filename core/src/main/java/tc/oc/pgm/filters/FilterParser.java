@@ -6,6 +6,7 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
@@ -26,6 +27,7 @@ import tc.oc.pgm.flag.state.Dropped;
 import tc.oc.pgm.flag.state.Returned;
 import tc.oc.pgm.flag.state.State;
 import tc.oc.pgm.goals.GoalDefinition;
+import tc.oc.pgm.payload.PayloadDefinition;
 import tc.oc.pgm.teams.TeamFactory;
 import tc.oc.pgm.teams.TeamModule;
 import tc.oc.pgm.teams.Teams;
@@ -442,5 +444,16 @@ public abstract class FilterParser {
   @MethodParser("time")
   public TimeFilter parseTimeFilter(Element el) throws InvalidXMLException {
     return new TimeFilter(XMLUtils.parseDuration(el, null));
+  }
+
+  @MethodParser("payload-checkpoint")
+  public PayloadCheckpointFilter parsePayloadCheckpoint(Element el) throws InvalidXMLException {
+    Pattern pattern = Pattern.compile("[ps]\\d+");
+    String checkpointId = el.getAttributeValue("checkpoint");
+    if (!pattern.matcher(checkpointId).matches()) {
+      throw new InvalidXMLException("Invalid checkpoint", el);
+    }
+    return new PayloadCheckpointFilter(
+        factory.getFeatures().createReference(new Node(el), PayloadDefinition.class), checkpointId);
   }
 }

@@ -97,7 +97,11 @@ public class Payload extends ControllableGoal<PayloadDefinition>
   private boolean completed = false;
 
   private final Map<Integer, PayloadCheckpoint> checkpointMap = new HashMap<>();
-  private int lastReachedCheckpointKey;
+  private int lastReachedCheckpointKey =
+      0; // 0 means middle, but returns no actual PayloadCheckpoint
+
+  // Is the payload behind or in front of the last reached checkpoint
+  private boolean isPastLastCheckpoint;
 
   private final TeamMatchModule tmm;
   private Competitor leadingTeam;
@@ -132,7 +136,8 @@ public class Payload extends ControllableGoal<PayloadDefinition>
         + COMPLETION_FORMAT.format(getCurrentCompletion());
   }
 
-  private PayloadCheckpoint getLastReachedCheckpoint() {
+  @Nullable
+  public final PayloadCheckpoint getLastReachedCheckpoint() {
     return checkpointMap.get(lastReachedCheckpointKey);
   }
 
@@ -143,7 +148,6 @@ public class Payload extends ControllableGoal<PayloadDefinition>
   public boolean getShowProgress() {
     return definition.shouldShowProgress();
   }
-
 
   public double getCompletion(Competitor competitor) {
 
@@ -188,7 +192,7 @@ public class Payload extends ControllableGoal<PayloadDefinition>
           || (((Team) team).isInstance(definition.getSecondaryOwner())
               && !definition
                   .shouldSecondaryTeamPushButNoGoal()); // If they have no goal they cant complete
-                                                        // anything
+    // anything
     return false;
   }
 
@@ -237,11 +241,16 @@ public class Payload extends ControllableGoal<PayloadDefinition>
   public void tick(Match match) {
     if (isCompleted()) return; // Freeze if completed
 
-    tickDisplay();
-
+    // Move if conditions are present
     tickMove();
 
-    if (updateProx()) leadingTeam = currentOwner;
+    // Display the pretty circle around the payload
+    tickDisplay();
+
+    // Check if any team has gotten further than their last record
+    // Returns true if an updated completion is further than the last updated
+    // completion for the opposite side
+    if (updateCompletion()) leadingTeam = currentOwner;
 
     match.callEvent(new GoalStatusChangeEvent(match, this));
   }
@@ -288,11 +297,19 @@ public class Payload extends ControllableGoal<PayloadDefinition>
       if (getLastReachedCheckpoint() == null
           || currentPath.index() != getLastReachedCheckpoint().index())
         // then refresh the lastReachedCheckpointKey
-        calculateCheckpointContext();
+        calculateCheckpointContext(true);
 
       // If its permanent and trying to move the wrong way..
       // Stop it!!
       if (hasPayloadHitPermanentCheckpoint()) return;
+    }
+
+    // If the current path is closer to the middle than the last reached checkpoint
+    if (getLastReachedCheckpoint() != null
+        && Math.abs(currentPath.index() - middlePath.index())
+            < Math.abs(getLastReachedCheckpoint().index() - middlePath.index())) {
+      // then refresh the lastReachedCheckpointKey
+      calculateCheckpointContext(false);
     }
 
     Path nextPath = getControllingTeamPath();
@@ -316,22 +333,33 @@ public class Payload extends ControllableGoal<PayloadDefinition>
     refreshRegion();
   }
 
-  private void calculateCheckpointContext() {
-    PayloadCheckpoint newCheckpoint;
+  private void calculateCheckpointContext(boolean forwards) {
+    PayloadCheckpoint newCheckpoint = null;
 
-    newCheckpoint = null;
-
-    for (PayloadCheckpoint checkpoint : checkpointMap.values()) {
-      if (currentPath.index() == checkpoint.index()) {
-        newCheckpoint = checkpoint;
+    // A new checkpoint further away from the middle
+    if (forwards) {
+      for (PayloadCheckpoint checkpoint : checkpointMap.values()) {
+        if (currentPath.index() == checkpoint.index()) {
+          newCheckpoint = checkpoint;
+        }
       }
     }
 
-    if (newCheckpoint == null) return;
+    // A new checkpoint closer to the middle(Triggered when a payload goes back over a previously
+    // passed checkpoint)
+    else {
+      newCheckpoint =
+          checkpointMap.get(lastReachedCheckpointKey - (lastReachedCheckpointKey > 0 ? 1 : -1));
+    }
 
     if (getLastReachedCheckpoint() != newCheckpoint) {
 
-      lastReachedCheckpointKey = newCheckpoint.getMapIndex();
+      // First call the event
+      match.callEvent(new PayloadReachCheckpointEvent(this, currentOwner, forwards));
+
+      // Then actually change the last reached checkpoint
+      if (newCheckpoint == null) lastReachedCheckpointKey = 0;
+      else lastReachedCheckpointKey = newCheckpoint.getMapIndex();
 
       final Component message =
           TranslatableComponent.of(
@@ -398,7 +426,7 @@ public class Payload extends ControllableGoal<PayloadDefinition>
     return (float) Math.max(0.001, rgb / 255.0);
   }
 
-  private boolean updateProx() {
+  private boolean updateCompletion() {
     if (currentPath.index() > middlePath.index()) {
       if (furthestHeadPath == null || currentPath.index() > furthestHeadPath.index()) {
         furthestHeadPath = currentPath;
@@ -416,8 +444,11 @@ public class Payload extends ControllableGoal<PayloadDefinition>
 
   public void createPayload() {
     // Order is important!
+
     makeRail();
+
     summonMinecart();
+
     refreshRegion();
   }
 
@@ -467,7 +498,7 @@ public class Payload extends ControllableGoal<PayloadDefinition>
       if (isUnderSecondaryOwnerControl()) return currentPath.previous();
     }
 
-    return (currentPath.index() > middlePath.index()) // Payload moves towards middle when neutral
+    return (currentPath.index() < middlePath.index()) // Payload moves towards middle when neutral
         ? currentPath.next()
         : currentPath.previous();
   }
@@ -638,7 +669,7 @@ public class Payload extends ControllableGoal<PayloadDefinition>
     final List<Integer> permanentTail = definition.getPermanentTailCheckpoints();
 
     Path discoverCheckpoints = middlePath;
-    int h = 0;
+    int h = 1; // 0 is reserved for middle
     while (discoverCheckpoints.hasNext()) {
       Path potentialCheckpoint =
           discoverCheckpoints.next(); // No reason to check for a checkpoint ON the middle path

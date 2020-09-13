@@ -10,7 +10,7 @@ import tc.oc.pgm.teams.TeamFactory;
 import tc.oc.pgm.util.material.MaterialMatcher;
 
 @FeatureInfo(name = "payload")
-class PayloadDefinition extends ControllableGoalDefinition {
+public class PayloadDefinition extends ControllableGoalDefinition {
 
   /** Where the path building starts from(Location of the primary goal) */
   private final Vector startingLocation;

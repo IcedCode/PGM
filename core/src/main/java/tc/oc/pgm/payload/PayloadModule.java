@@ -24,6 +24,7 @@ import tc.oc.pgm.goals.GoalMatchModule;
 import tc.oc.pgm.teams.TeamFactory;
 import tc.oc.pgm.teams.TeamMatchModule;
 import tc.oc.pgm.teams.TeamModule;
+import tc.oc.pgm.util.material.MaterialMatcher;
 import tc.oc.pgm.util.xml.InvalidXMLException;
 import tc.oc.pgm.util.xml.XMLUtils;
 
@@ -107,12 +108,12 @@ public class PayloadModule implements MapModule<PayloadMatchModule> {
 
     TeamModule teams = factory.getModule(TeamModule.class);
 
-    // TODO: Throw error if secondary but NOT primary team is specified, throw error if they are the
-    // same
-    TeamFactory primaryOwner =
-        teams == null ? null : teams.parseTeam(el.getAttribute("primary-owner"), factory);
-    TeamFactory secondaryOwner =
-        teams == null ? null : teams.parseTeam(el.getAttribute("secondary-owner"), factory);
+    TeamFactory primaryOwner = teams.parseTeam(el.getAttribute("primary-owner"), factory);
+    TeamFactory secondaryOwner = teams.parseTeam(el.getAttribute("secondary-owner"), factory);
+
+    if (primaryOwner == null) throw new InvalidXMLException("No primary team found", el);
+    if (primaryOwner == secondaryOwner)
+      throw new InvalidXMLException("Primary and secondary team can not be the same team", el);
 
     ControllableGoalDefinition.CaptureCondition captureCondition =
         ControllableGoalDefinition.parseCaptureCondition(el);
@@ -120,8 +121,9 @@ public class PayloadModule implements MapModule<PayloadMatchModule> {
     float radius = parseFloat("radius", 3.5f, el);
     float height = parseFloat("height", 5f, el);
 
-    // MaterialMatcher checkpointMaterials =
-    // XMLUtils.parseMaterialMatcher(el.getChild("checkpoint-material-matcher"));
+    Element materialsElement = el.getChild("checkpoint-materials");
+    MaterialMatcher checkpointMaterials =
+        materialsElement == null ? null : XMLUtils.parseMaterialMatcher(materialsElement);
 
     List<Integer> permanentHeadCheckpoints = new ArrayList<>();
     List<Integer> permanentTailCheckpoints = new ArrayList<>();
@@ -135,9 +137,7 @@ public class PayloadModule implements MapModule<PayloadMatchModule> {
     }
 
     float primaryOwnerSpeed = parseFloat("primary-owner-speed", 1f, el);
-    float primaryOwnerSpeedMultiplier = parseFloat("primary-owner-speed-multiplier", 1f, el);
     float secondaryOwnerSpeed = parseFloat("secondary-owner-speed", 1f, el);
-    float secondaryOwnerSpeedMultiplier = parseFloat("secondary-owner-speed-multiplier", 1f, el);
     float neutralSpeed = parseFloat("neutral-speed", 0.2f, el);
 
     boolean permanent = XMLUtils.parseBoolean(el.getAttribute("permanent"), false);
@@ -163,13 +163,11 @@ public class PayloadModule implements MapModule<PayloadMatchModule> {
         radius,
         height,
         shouldSecondaryTeamPushButNoGoal,
-        null,
+        checkpointMaterials,
         permanentHeadCheckpoints,
         permanentTailCheckpoints,
         primaryOwnerSpeed,
-        primaryOwnerSpeedMultiplier,
         secondaryOwnerSpeed,
-        secondaryOwnerSpeedMultiplier,
         neutralSpeed,
         permanent,
         points,

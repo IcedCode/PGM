@@ -15,7 +15,7 @@ public class PayloadTickTask implements Tickable {
   @Override
   public void tick(Match match, Tick tick) {
     for (Payload payload : payloads) {
-      payload.tick(match);
+      payload.tick();
     }
   }
 }

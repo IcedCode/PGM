@@ -1,5 +1,6 @@
 package tc.oc.pgm.payload;
 
+/** A wrapper for some info relevant to checkpoints on a Payload rail */
 public class PayloadCheckpoint {
 
   private final int index;

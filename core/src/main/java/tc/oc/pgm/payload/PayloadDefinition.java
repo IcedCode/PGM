@@ -42,20 +42,8 @@ public class PayloadDefinition extends ControllableGoalDefinition {
   /** The speed of the payload when under control of the owning team */
   private final float primaryOwnerSpeed;
 
-  /**
-   * Speed multiplier for increasing or decreasing forwards speed based on the number of players on
-   * the point when under control of the owning team
-   */
-  private final float primaryOwnerSpeedMultiplier;
-
   /** The speed of the payload when under control of the competing owning team */
   private final float secondaryOwnerSpeed;
-
-  /**
-   * Speed multiplier for increasing or decreasing backwards speed based on the number of players on
-   * the point when under control of the competing owning team
-   */
-  private final float secondaryOwnerSpeedMultiplier;
 
   /** The speed of the payload when it is in a neutral state */
   private final float neutralSpeed;
@@ -82,9 +70,7 @@ public class PayloadDefinition extends ControllableGoalDefinition {
       @Nullable List<Integer> permanentHeadCheckpoints,
       @Nullable List<Integer> permanentTailCheckpoints,
       float primaryOwnerSpeed,
-      float primaryOwnerSpeedMultiplier,
       float secondaryOwnerSpeed,
-      float secondaryOwnerSpeedMultiplier,
       float neutralSpeed,
       boolean permanent,
       float points,
@@ -110,9 +96,7 @@ public class PayloadDefinition extends ControllableGoalDefinition {
     this.permanentHeadCheckpoints = permanentHeadCheckpoints;
     this.permanentTailCheckpoints = permanentTailCheckpoints;
     this.primaryOwnerSpeed = primaryOwnerSpeed;
-    this.primaryOwnerSpeedMultiplier = primaryOwnerSpeedMultiplier;
     this.secondaryOwnerSpeed = secondaryOwnerSpeed;
-    this.secondaryOwnerSpeedMultiplier = secondaryOwnerSpeedMultiplier;
     this.neutralSpeed = neutralSpeed;
     this.points = points;
   }
@@ -169,18 +153,14 @@ public class PayloadDefinition extends ControllableGoalDefinition {
     return secondaryOwner;
   }
 
-  public float getPrimaryOwnerSpeedMultiplier() {
-    return primaryOwnerSpeedMultiplier;
-  }
-
-  public float getSecondaryOwnerSpeedMultiplier() {
-    return secondaryOwnerSpeedMultiplier;
-  }
-
   public float getNeutralSpeed() {
     return neutralSpeed;
   }
 
+  /**
+   * True if the specified secondary team should have their own push speed without being able to
+   * complete the goal
+   */
   public boolean shouldSecondaryTeamPushButNoGoal() {
     return secondaryTeamPushButNoGoal;
   }
@@ -208,12 +188,8 @@ public class PayloadDefinition extends ControllableGoalDefinition {
         + permanentTailCheckpoints
         + ", primaryOwnerSpeed="
         + primaryOwnerSpeed
-        + ", primaryOwnerSpeedMultiplier="
-        + primaryOwnerSpeedMultiplier
         + ", secondaryOwnerSpeed="
         + secondaryOwnerSpeed
-        + ", secondaryOwnerSpeedMultiplier="
-        + secondaryOwnerSpeedMultiplier
         + ", neutralSpeed="
         + neutralSpeed
         + ", points="

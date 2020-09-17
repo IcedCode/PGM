@@ -100,9 +100,6 @@ public class Payload extends ControllableGoal<PayloadDefinition>
   private int lastReachedCheckpointKey =
       0; // 0 means middle, but returns no actual PayloadCheckpoint
 
-  // Is the payload behind or in front of the last reached checkpoint
-  private boolean isPastLastCheckpoint;
-
   private final TeamMatchModule tmm;
   private Competitor leadingTeam;
 
@@ -230,15 +227,14 @@ public class Payload extends ControllableGoal<PayloadDefinition>
 
   // Controllable
 
-  @Override
+  @Override // Called in ControllableGoal#contestCycle
   public void dominationCycle(@Nullable Competitor dominatingTeam, int lead, Duration duration) {
     currentOwner = dominatingTeam; // The team that completes the CaptureCondition
   }
 
-  // Stuff done each tick //FIXME dont be yanderedev pls
+  // Ticktickticktick
+  public void tick() {
 
-  /** Called by this {@link Payload}s {@link PayloadTickTask} */
-  public void tick(Match match) {
     if (isCompleted()) return; // Freeze if completed
 
     // Move if conditions are present
@@ -271,15 +267,16 @@ public class Payload extends ControllableGoal<PayloadDefinition>
               currentOwner.getNameLegacy() + " Completed the goal 8)", TextColor.GOLD));
 
       final ScoreMatchModule smm = match.needModule(ScoreMatchModule.class);
-      if (smm != null) { // Increment points if the score module is present(default is 0)
+      if (smm != null) { // Increment points if the score module is present(default points is 0)
         if (currentOwner != null) smm.incrementScore(currentOwner, points);
         return;
       }
     }
 
     speed = Math.abs(speed);
-    if (speed == 0) return; // Mostly for if neutral speed is 0
-    move(speed / 10.0);
+    if (speed == 0) return; // Mainly for if neutral speed is 0
+
+    move(speed / 10.0); // Move the entity
   }
 
   private void move(double distance) {
@@ -319,7 +316,10 @@ public class Payload extends ControllableGoal<PayloadDefinition>
     if (extraLen > 0) {
       currentPath = nextPath;
       move(extraLen);
-    } else payloadLocation.add(direction.multiply(distance / len));
+    } else
+      payloadLocation.add(
+          direction.multiply(
+              distance / len)); // FIXME: Something here can become 0 and payload will disappear
 
     // Actually move the payload
     payloadEntity.teleport(payloadLocation);
@@ -376,10 +376,10 @@ public class Payload extends ControllableGoal<PayloadDefinition>
   private boolean hasPayloadHitPermanentCheckpoint() {
     if (getLastReachedCheckpoint() != null) {
 
-      return (isUnderPrimaryOwnerControl()
+      return ((isUnderPrimaryOwnerControl() || isNeutral())
               && getLastReachedCheckpoint().index() < middlePath.index()
               && getLastReachedCheckpoint().isPermanent())
-          || (isUnderSecondaryOwnerControl()
+          || ((isUnderSecondaryOwnerControl() || isNeutral())
               && getLastReachedCheckpoint().index() > middlePath.index()
               && getLastReachedCheckpoint().isPermanent());
     }
@@ -530,7 +530,7 @@ public class Payload extends ControllableGoal<PayloadDefinition>
     return currentOwner == null;
   }
 
-  protected void makeRail() {
+  protected void makeRail() { // FIXME This breaks if there are no checkpoints for some reason
     final Location location = definition.getStartingLocation().toLocation(getMatch().getWorld());
 
     // Payload must start on a rail
@@ -722,8 +722,8 @@ public class Payload extends ControllableGoal<PayloadDefinition>
 
   /**
    * Checks the given {@link Block} and the block below({@code BlockFace.DOWN}) for any {@link
-   * Material}s matching with either a xml-defined {@link MaterialMatcher} or {@code
-   * Payload.STANDARD_CHECKPOINT_MATERIALS} by default
+   * Material}s matching with either a xml-defined {@link MaterialMatcher} or {@link Payload#} by
+   * default
    */
   private boolean isCheckpoint(Block block) {
     final MaterialMatcher materialMatcher;

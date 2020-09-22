@@ -58,7 +58,7 @@ public class RegionPlayerTracker implements Listener {
     MatchPlayer player = this.match.getPlayer(bukkit);
     if (!MatchPlayers.canInteract(player)) return;
 
-    if (!player.getBukkit().isDead() && region.contains(to.toBlockVector())) {
+    if (!player.isDead() && region.contains(to.toBlockVector())) {
       this.players.add(player);
     } else {
       this.players.remove(player);

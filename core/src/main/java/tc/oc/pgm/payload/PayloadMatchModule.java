@@ -7,8 +7,8 @@ import tc.oc.pgm.api.match.MatchScope;
 
 public class PayloadMatchModule implements MatchModule {
 
-  List<Payload> payloads;
-  Match match;
+  private final List<Payload> payloads;
+  private final Match match;
 
   PayloadMatchModule(Match match, List<Payload> payloads) {
     match.addTickable(new PayloadTickTask(payloads), MatchScope.RUNNING);

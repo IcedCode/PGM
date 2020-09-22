@@ -1,10 +1,9 @@
 package tc.oc.pgm.payload;
 
 import com.google.common.collect.ImmutableList;
-import java.text.DecimalFormat;
-import java.text.NumberFormat;
 import java.time.Duration;
 import java.util.*;
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import net.kyori.text.Component;
 import net.kyori.text.TextComponent;
@@ -73,7 +72,7 @@ public class Payload extends ControllableGoal<PayloadDefinition>
   @Nullable private Competitor currentOwner = null;
 
   // The amount of Paths in this payloads rail
-  private int railSize = 0;
+  private int railSize;
 
   private Minecart payloadEntity;
   private ArmorStand labelEntity;
@@ -120,22 +119,27 @@ public class Payload extends ControllableGoal<PayloadDefinition>
     return getCompletion(leadingTeam);
   }
 
-  static final NumberFormat COMPLETION_FORMAT = DecimalFormat.getPercentInstance(Locale.US);
-
   @Override
   public String renderCompletion() {
-    return (leadingTeam == null ? COLOR_NEUTRAL_TEAM : leadingTeam.getColor())
-        + ""
-        + COMPLETION_FORMAT.format(getCompletion())
-        + ""
-        + ChatColor.RESET
-        + " "
-        + COMPLETION_FORMAT.format(getCurrentCompletion());
+    return (currentOwner == null ? COLOR_NEUTRAL_TEAM : currentOwner.getColor())
+        + (currentPath.isCheckpoint()
+            ? SYMBOL_PAYLOAD_NEUTRAL
+            : (pathsUntilNextCheckpoint() + "m"));
   }
 
-  @Nullable
+  @Nonnull
   public final PayloadCheckpoint getLastReachedCheckpoint() {
     return checkpointMap.get(lastReachedCheckpointKey);
+  }
+
+  /**
+   * Gets the next {@link PayloadCheckpoint} in the given direction
+   *
+   * @param head {@code true} if the next checkpoint in the head direction should be returned
+   *     {@code} false if the next checkpoint in the tail direction should be returned}
+   */
+  private PayloadCheckpoint getNextCheckpoint(boolean head) {
+    return checkpointMap.get(lastReachedCheckpointKey - (head ? -1 : 1));
   }
 
   public @Nullable String renderPreciseCompletion() {
@@ -169,15 +173,14 @@ public class Payload extends ControllableGoal<PayloadDefinition>
   }
 
   /**
-   * Gets the completion towards the closest end
+   * Gets the remaining amount of paths until the next checkpoint
    *
-   * @return the completion as a number between 0 and 1
+   * @return the remaining amount of paths until the next checkpoint
    */
-  public double getCurrentCompletion() {
-    if (currentPath.index() == middlePath.index()) return 0;
-    return (currentPath.index() > middlePath.index()
-        ? (currentPath.index() - middlePath.index()) / (double) (railSize - middlePath.index())
-        : (middlePath.index() - currentPath.index()) / (double) middlePath.index());
+  public int pathsUntilNextCheckpoint() {
+    if (currentPath.index() == middlePath.index() || currentPath.isCheckpoint()) return 0;
+    return Math.abs(
+        currentPath.index() - getNextCheckpoint(currentPath.index() > middlePath.index()).index());
   }
 
   //
@@ -214,15 +217,11 @@ public class Payload extends ControllableGoal<PayloadDefinition>
   }
 
   public String renderSidebarStatusText(@Nullable Competitor competitor, Party viewer) {
-    return (isNeutral()
-            ? COLOR_NEUTRAL_TEAM + SYMBOL_PAYLOAD_NEUTRAL + ChatColor.GRAY
-            : currentOwner.getColor() + SYMBOL_PAYLOAD_PUSHING + ChatColor.GRAY)
-        + " "
-        + renderCompletion();
+    return renderCompletion();
   }
 
   public ChatColor renderSidebarLabelColor(@Nullable Competitor competitor, Party viewer) {
-    return isNeutral() ? COLOR_NEUTRAL_TEAM : currentOwner.getColor();
+    return ChatColor.GRAY;
   }
 
   // Controllable
@@ -291,8 +290,7 @@ public class Payload extends ControllableGoal<PayloadDefinition>
     // If the current Path is a checkpoint
     if (currentPath.isCheckpoint()) {
       // AND it is not the same checkpoint as the last one reached
-      if (getLastReachedCheckpoint() == null
-          || currentPath.index() != getLastReachedCheckpoint().index())
+      if (currentPath.index() != getLastReachedCheckpoint().index())
         // then refresh the lastReachedCheckpointKey
         calculateCheckpointContext(true);
 
@@ -302,7 +300,8 @@ public class Payload extends ControllableGoal<PayloadDefinition>
     }
 
     // If the current path is closer to the middle than the last reached checkpoint
-    if (getLastReachedCheckpoint() != null
+    // AND the last reached checkpoint is not the middle
+    if (!getLastReachedCheckpoint().isMiddle()
         && Math.abs(currentPath.index() - middlePath.index())
             < Math.abs(getLastReachedCheckpoint().index() - middlePath.index())) {
       // then refresh the lastReachedCheckpointKey
@@ -316,10 +315,7 @@ public class Payload extends ControllableGoal<PayloadDefinition>
     if (extraLen > 0) {
       currentPath = nextPath;
       move(extraLen);
-    } else
-      payloadLocation.add(
-          direction.multiply(
-              distance / len)); // FIXME: Something here can become 0 and payload will disappear
+    } else payloadLocation.add(direction.multiply(distance / len));
 
     // Actually move the payload
     payloadEntity.teleport(payloadLocation);
@@ -348,8 +344,7 @@ public class Payload extends ControllableGoal<PayloadDefinition>
     // A new checkpoint closer to the middle(Triggered when a payload goes back over a previously
     // passed checkpoint)
     else {
-      newCheckpoint =
-          checkpointMap.get(lastReachedCheckpointKey - (lastReachedCheckpointKey > 0 ? 1 : -1));
+      newCheckpoint = getNextCheckpoint(lastReachedCheckpointKey < 0);
     }
 
     if (getLastReachedCheckpoint() != newCheckpoint) {
@@ -374,7 +369,7 @@ public class Payload extends ControllableGoal<PayloadDefinition>
   }
 
   private boolean hasPayloadHitPermanentCheckpoint() {
-    if (getLastReachedCheckpoint() != null) {
+    if (!getLastReachedCheckpoint().isMiddle()) {
 
       return ((isUnderPrimaryOwnerControl() || isNeutral())
               && getLastReachedCheckpoint().index() < middlePath.index()
@@ -530,7 +525,7 @@ public class Payload extends ControllableGoal<PayloadDefinition>
     return currentOwner == null;
   }
 
-  protected void makeRail() { // FIXME This breaks if there are no checkpoints for some reason
+  protected void makeRail() {
     final Location location = definition.getStartingLocation().toLocation(getMatch().getWorld());
 
     // Payload must start on a rail
@@ -683,7 +678,7 @@ public class Payload extends ControllableGoal<PayloadDefinition>
       discoverCheckpoints = discoverCheckpoints.next();
     }
 
-    // Adding the goal as a checkpoint for sidebar progress rendering
+    // Adding the end in this direction as a checkpoint
     checkpointMap.put(h, new PayloadCheckpoint(discoverCheckpoints.index(), h, false));
 
     discoverCheckpoints = middlePath; // Reset
@@ -704,12 +699,18 @@ public class Payload extends ControllableGoal<PayloadDefinition>
       discoverCheckpoints = discoverCheckpoints.previous();
     }
 
-    // Adding the goal as a checkpoint for sidebar progress rendering
+    // Adding the end in this direction as a checkpoint
     checkpointMap.put(t, new PayloadCheckpoint(discoverCheckpoints.index(), t, false));
+
+    // Adding the middle as a checkpoint
+    checkpointMap.put(0, new PayloadCheckpoint(middlePath.index(), 0, false));
   }
 
+  /** Checks if a {@link Material} is any type of rail(normal, detector, activator, powered) */
   public boolean isRails(Material material) {
-    return material.equals(Material.RAILS);
+    // STANDARD_CHECKPOINT_MATERIALS covers all other types of rails
+    // The fact that both isRails AND isCheckpoint can be true for a single Path is OK
+    return material.equals(Material.RAILS) || STANDARD_CHECKPOINT_MATERIALS.matches(material);
   }
 
   /** The default {@link MaterialMatcher} used for checking if a payload is on a checkpoint */
@@ -721,9 +722,9 @@ public class Payload extends ControllableGoal<PayloadDefinition>
               new SingleMaterialMatcher(Material.POWERED_RAIL)));
 
   /**
-   * Checks the given {@link Block} and the block below({@code BlockFace.DOWN}) for any {@link
-   * Material}s matching with either a xml-defined {@link MaterialMatcher} or {@link Payload#} by
-   * default
+   * Checks the given {@link Block} and the block below({@link BlockFace#DOWN}) for any {@link
+   * Material}s matching with either a xml-defined {@link MaterialMatcher} or {@link
+   * Payload#STANDARD_CHECKPOINT_MATERIALS} by default
    */
   private boolean isCheckpoint(Block block) {
     final MaterialMatcher materialMatcher;

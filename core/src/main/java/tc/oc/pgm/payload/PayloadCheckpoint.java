@@ -24,4 +24,8 @@ public class PayloadCheckpoint {
   public boolean isPermanent() {
     return permanent;
   }
+
+  public boolean isMiddle() {
+    return mapIndex == 0;
+  }
 }

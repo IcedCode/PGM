@@ -3,7 +3,6 @@ package tc.oc.pgm.payload;
 import com.google.common.collect.ImmutableList;
 import java.time.Duration;
 import java.util.*;
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import net.kyori.text.Component;
 import net.kyori.text.TextComponent;
@@ -18,16 +17,10 @@ import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Minecart;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.Listener;
-import org.bukkit.event.vehicle.VehicleDamageEvent;
-import org.bukkit.event.vehicle.VehicleDestroyEvent;
-import org.bukkit.event.vehicle.VehicleEnterEvent;
 import org.bukkit.material.MaterialData;
 import org.bukkit.material.Rails;
 import org.bukkit.util.Vector;
 import tc.oc.pgm.api.match.Match;
-import tc.oc.pgm.api.match.MatchScope;
 import tc.oc.pgm.api.party.Competitor;
 import tc.oc.pgm.api.party.Party;
 import tc.oc.pgm.goals.ControllableGoal;
@@ -42,6 +35,7 @@ import tc.oc.pgm.util.bukkit.BukkitUtils;
 import tc.oc.pgm.util.material.MaterialMatcher;
 import tc.oc.pgm.util.material.matcher.CompoundMaterialMatcher;
 import tc.oc.pgm.util.material.matcher.SingleMaterialMatcher;
+import tc.oc.pgm.util.text.TextFormatter;
 
 // ---------------------------Terminology-----------------------------
 // -- Rail -> A collection of nested Paths(Stored in each other)     I
@@ -59,12 +53,7 @@ import tc.oc.pgm.util.material.matcher.SingleMaterialMatcher;
 // -------------------------------------------------------------------
 
 public class Payload extends ControllableGoal<PayloadDefinition>
-    implements IncrementalGoal<PayloadDefinition>, Listener {
-
-  public static final ChatColor COLOR_NEUTRAL_TEAM = ChatColor.WHITE;
-
-  public static final String SYMBOL_PAYLOAD_NEUTRAL = "\u29be"; // ⦾
-  public static final String SYMBOL_PAYLOAD_PUSHING = "\u2794"; // ➔
+    implements IncrementalGoal<PayloadDefinition> {
 
   // The team that currently owns the payload
   // Teams that can not push the payload CAN be the owner
@@ -96,18 +85,29 @@ public class Payload extends ControllableGoal<PayloadDefinition>
   private boolean completed = false;
 
   private final Map<Integer, PayloadCheckpoint> checkpointMap = new HashMap<>();
-  private int lastReachedCheckpointKey =
-      0; // 0 means middle, but returns no actual PayloadCheckpoint
+  private int lastReachedCheckpointKey = 0; // 0 means middle
+  private int headCheckpointsAmount;
+  private int tailCheckpointsAmount;
 
   private final TeamMatchModule tmm;
   private Competitor leadingTeam;
+
+  public static final ChatColor COLOR_NEUTRAL_TEAM = ChatColor.WHITE;
+
+  public static final String SYMBOL_PAYLOAD_NEUTRAL = "\u29be"; // ⦾
+
+  /** The default {@link MaterialMatcher} used for checking if a payload is on a checkpoint */
+  public static final MaterialMatcher STANDARD_CHECKPOINT_MATERIALS =
+      new CompoundMaterialMatcher(
+          ImmutableList.of(
+              new SingleMaterialMatcher(Material.DETECTOR_RAIL),
+              new SingleMaterialMatcher(Material.ACTIVATOR_RAIL),
+              new SingleMaterialMatcher(Material.POWERED_RAIL)));
 
   public Payload(Match match, PayloadDefinition definition) {
     super(definition, match);
 
     tmm = match.needModule(TeamMatchModule.class);
-
-    match.addListener(this, MatchScope.RUNNING);
 
     createPayload();
   }
@@ -121,25 +121,9 @@ public class Payload extends ControllableGoal<PayloadDefinition>
 
   @Override
   public String renderCompletion() {
-    return (currentOwner == null ? COLOR_NEUTRAL_TEAM : currentOwner.getColor())
-        + (currentPath.isCheckpoint()
-            ? SYMBOL_PAYLOAD_NEUTRAL
-            : (pathsUntilNextCheckpoint() + "m"));
-  }
-
-  @Nonnull
-  public final PayloadCheckpoint getLastReachedCheckpoint() {
-    return checkpointMap.get(lastReachedCheckpointKey);
-  }
-
-  /**
-   * Gets the next {@link PayloadCheckpoint} in the given direction
-   *
-   * @param head {@code true} if the next checkpoint in the head direction should be returned
-   *     {@code} false if the next checkpoint in the tail direction should be returned}
-   */
-  private PayloadCheckpoint getNextCheckpoint(boolean head) {
-    return checkpointMap.get(lastReachedCheckpointKey - (head ? -1 : 1));
+    return (currentPath.isCheckpoint()
+        ? SYMBOL_PAYLOAD_NEUTRAL
+        : (pathsUntilNextCheckpoint() + "m"));
   }
 
   public @Nullable String renderPreciseCompletion() {
@@ -213,7 +197,7 @@ public class Payload extends ControllableGoal<PayloadDefinition>
 
   @Override
   public ChatColor renderSidebarStatusColor(@Nullable Competitor competitor, Party viewer) {
-    return ChatColor.GRAY;
+    return getControllingTeamColor();
   }
 
   public String renderSidebarStatusText(@Nullable Competitor competitor, Party viewer) {
@@ -221,7 +205,7 @@ public class Payload extends ControllableGoal<PayloadDefinition>
   }
 
   public ChatColor renderSidebarLabelColor(@Nullable Competitor competitor, Party viewer) {
-    return ChatColor.GRAY;
+    return getControllingTeamColor();
   }
 
   // Controllable
@@ -261,15 +245,13 @@ public class Payload extends ControllableGoal<PayloadDefinition>
         && !(!isUnderPrimaryOwnerControl() && definition.shouldSecondaryTeamPushButNoGoal())) {
       completed = true;
       match.callEvent(new GoalCompleteEvent(match, this, currentOwner, true));
-      match.sendMessage(
-          TextComponent.of(
-              currentOwner.getNameLegacy() + " Completed the goal 8)", TextColor.GOLD));
 
       final ScoreMatchModule smm = match.needModule(ScoreMatchModule.class);
       if (smm != null) { // Increment points if the score module is present(default points is 0)
         if (currentOwner != null) smm.incrementScore(currentOwner, points);
-        return;
       }
+
+      return; // Dont execute a moving cycle if the payload has been completed
     }
 
     speed = Math.abs(speed);
@@ -330,42 +312,64 @@ public class Payload extends ControllableGoal<PayloadDefinition>
   }
 
   private void calculateCheckpointContext(boolean forwards) {
-    PayloadCheckpoint newCheckpoint = null;
-
-    // A new checkpoint further away from the middle
-    if (forwards) {
-      for (PayloadCheckpoint checkpoint : checkpointMap.values()) {
-        if (currentPath.index() == checkpoint.index()) {
-          newCheckpoint = checkpoint;
-        }
-      }
-    }
-
-    // A new checkpoint closer to the middle(Triggered when a payload goes back over a previously
-    // passed checkpoint)
-    else {
-      newCheckpoint = getNextCheckpoint(lastReachedCheckpointKey < 0);
-    }
+    PayloadCheckpoint newCheckpoint =
+        forwards
+            ?
+            // A new checkpoint further away from the middle
+            getNextCheckpoint(currentPath.index() > middlePath.index())
+            :
+            // A new checkpoint closer to the middle(Triggered when a payload goes back over a
+            // previously
+            // passed checkpoint)
+            getNextCheckpoint(lastReachedCheckpointKey < 0);
 
     if (getLastReachedCheckpoint() != newCheckpoint) {
 
+      int oldCheckpointKey = lastReachedCheckpointKey;
+
       // First call the event
       match.callEvent(new PayloadReachCheckpointEvent(this, currentOwner, forwards));
-
       // Then actually change the last reached checkpoint
-      if (newCheckpoint == null) lastReachedCheckpointKey = 0;
-      else lastReachedCheckpointKey = newCheckpoint.getMapIndex();
+      lastReachedCheckpointKey = newCheckpoint.getMapIndex();
+
+      int relevantCheckpointKey = forwards ? lastReachedCheckpointKey : oldCheckpointKey;
+
+      TextColor checkpointColor = TextColor.WHITE;
+      if (relevantCheckpointKey != 0)
+        checkpointColor =
+            TextFormatter.convert(
+                (relevantCheckpointKey > 0
+                    ? tmm.getTeam(definition.getPrimaryOwner()).getColor()
+                    // If any tail checkpoints exist, then the secondary team should NOT be null
+                    : tmm.getTeam(definition.getSecondaryOwner()).getColor()));
 
       final Component message =
           TranslatableComponent.of(
-              "payloadCheckpoint",
-              TextColor.GRAY,
-              currentOwner == null
-                  ? TextComponent.of("Unknown", TextColor.DARK_AQUA)
-                  : currentOwner.getName(), // Put in the owner of the checkpoint
-              TextComponent.of(Math.abs(0)));
+              forwards
+                  ? "payload.reachedCheckpoint.forwards"
+                  : "payload.reachedCheckpoint.backwards",
+              this.getComponentName().color(TextFormatter.convert(getControllingTeamColor())),
+              TextComponent.of(Math.abs(relevantCheckpointKey), checkpointColor),
+              TextComponent.of(
+                  relevantCheckpointKey > 0 ? headCheckpointsAmount : tailCheckpointsAmount,
+                  checkpointColor));
       match.sendMessage(message);
     }
+  }
+
+  /** Gets the checkpoint furthest away from the middle currently reached */
+  public final PayloadCheckpoint getLastReachedCheckpoint() {
+    return checkpointMap.get(lastReachedCheckpointKey);
+  }
+
+  /**
+   * Gets the next {@link PayloadCheckpoint} in the given direction
+   *
+   * @param head {@code true} if the next checkpoint in the head direction should be returned
+   *     {@code} false if the next checkpoint in the tail direction should be returned}
+   */
+  private PayloadCheckpoint getNextCheckpoint(boolean head) {
+    return checkpointMap.get(lastReachedCheckpointKey - (head ? -1 : 1));
   }
 
   private boolean hasPayloadHitPermanentCheckpoint() {
@@ -410,8 +414,7 @@ public class Payload extends ControllableGoal<PayloadDefinition>
     }
 
     // Set the wool block inside the payload to the color of the controlling team
-    ChatColor color2 = !isNeutral() ? currentOwner.getColor() : COLOR_NEUTRAL_TEAM;
-    byte blockData = BukkitUtils.chatColorToDyeColor(color2).getWoolData();
+    byte blockData = BukkitUtils.chatColorToDyeColor(getControllingTeamColor()).getWoolData();
     MaterialData data = payloadEntity.getDisplayBlock();
     data.setData(blockData);
     payloadEntity.setDisplayBlock(data);
@@ -509,6 +512,10 @@ public class Payload extends ControllableGoal<PayloadDefinition>
     return definition.getNeutralSpeed();
   }
 
+  private ChatColor getControllingTeamColor() {
+    return isNeutral() ? COLOR_NEUTRAL_TEAM : currentOwner.getColor();
+  }
+
   private boolean isUnderPrimaryOwnerControl() {
     return currentOwner == tmm.getTeam(definition.getPrimaryOwner());
   }
@@ -528,23 +535,9 @@ public class Payload extends ControllableGoal<PayloadDefinition>
   protected void makeRail() {
     final Location location = definition.getStartingLocation().toLocation(getMatch().getWorld());
 
-    // Payload must start on a rail
-    if (!isRails(location.getBlock().getType())) {
-      getMatch().getLogger().warning("No rail found in starting position for payload");
-      return;
-    }
+    if (!isValidStartLocation(location)) return;
 
     final Rails startingRails = (Rails) location.getBlock().getState().getMaterialData();
-
-    if (startingRails.isCurve() || startingRails.isOnSlope()) {
-      getMatch().getLogger().warning("Starting rail can not be either curved or in a slope");
-      return;
-    }
-
-    if (isCheckpoint(location.getBlock())) {
-      getMatch().getLogger().warning("Starting rail can not be a checkpoint");
-      return;
-    }
 
     BlockFace direction = startingRails.getDirection();
 
@@ -638,18 +631,9 @@ public class Payload extends ControllableGoal<PayloadDefinition>
     tailPath = new Path(tailLocation, tail, null);
     tail.setNext(tailPath);
 
-    Location lookingFor =
-        definition.getMiddleLocation().toLocation(match.getWorld()).toCenterLocation();
+    Location lookingFor = definition.getMiddleLocation().toLocation(match.getWorld());
 
-    Path discoverMiddle = tail;
-    while (discoverMiddle.hasPrevious()) {
-      Location here = discoverMiddle.getLocation().toCenterLocation();
-      if (here.equals(lookingFor)) {
-        middlePath = discoverMiddle;
-        break;
-      }
-      discoverMiddle = discoverMiddle.previous();
-    }
+    middlePath = findPath(tail, lookingFor);
 
     if (middlePath == null) match.getLogger().warning("No middle path found");
 
@@ -658,6 +642,10 @@ public class Payload extends ControllableGoal<PayloadDefinition>
     furthestTailPath = middlePath;
     furthestHeadPath = middlePath;
 
+    makeCheckpoints();
+  }
+
+  private void makeCheckpoints() {
     // Checkpoint calculation
 
     final List<Integer> permanentHead = definition.getPermanentHeadCheckpoints();
@@ -673,6 +661,7 @@ public class Payload extends ControllableGoal<PayloadDefinition>
         boolean permanent = false;
         if (permanentHead != null) permanent = permanentHead.contains(checkpointMap.size() + 1);
         checkpointMap.put(h, new PayloadCheckpoint(index, h, permanent));
+        headCheckpointsAmount++;
         h++;
       }
       discoverCheckpoints = discoverCheckpoints.next();
@@ -694,6 +683,7 @@ public class Payload extends ControllableGoal<PayloadDefinition>
         if (permanentTail != null)
           permanent = permanentTail.contains(checkpointMap.size() - offset + 1);
         checkpointMap.put(t, new PayloadCheckpoint(index, t, permanent));
+        tailCheckpointsAmount++;
         t--;
       }
       discoverCheckpoints = discoverCheckpoints.previous();
@@ -713,13 +703,26 @@ public class Payload extends ControllableGoal<PayloadDefinition>
     return material.equals(Material.RAILS) || STANDARD_CHECKPOINT_MATERIALS.matches(material);
   }
 
-  /** The default {@link MaterialMatcher} used for checking if a payload is on a checkpoint */
-  public static final MaterialMatcher STANDARD_CHECKPOINT_MATERIALS =
-      new CompoundMaterialMatcher(
-          ImmutableList.of(
-              new SingleMaterialMatcher(Material.DETECTOR_RAIL),
-              new SingleMaterialMatcher(Material.ACTIVATOR_RAIL),
-              new SingleMaterialMatcher(Material.POWERED_RAIL)));
+  private boolean isValidStartLocation(Location location) {
+    // Payload must start on a rail
+    if (!isRails(location.getBlock().getType())) {
+      getMatch().getLogger().warning("No rail found in starting position for payload");
+      return false;
+    }
+
+    final Rails startingRails = (Rails) location.getBlock().getState().getMaterialData();
+
+    if (startingRails.isCurve() || startingRails.isOnSlope()) {
+      getMatch().getLogger().warning("Starting rail can not be either curved or in a slope");
+      return false;
+    }
+
+    if (isCheckpoint(location.getBlock())) {
+      getMatch().getLogger().warning("Starting rail can not be a checkpoint");
+      return false;
+    }
+    return true;
+  }
 
   /**
    * Checks the given {@link Block} and the block below({@link BlockFace#DOWN}) for any {@link
@@ -737,7 +740,41 @@ public class Payload extends ControllableGoal<PayloadDefinition>
         || materialMatcher.matches(block.getRelative(BlockFace.DOWN).getType());
   }
 
-  public Path getNewNeighborPath(
+  /**
+   * Looks along this {@link Payload}s rail for a {@link Path} that has a specific {@link Location}
+   *
+   * @param start The starting point for this algorithm
+   * @param lookingFor The point on this rail to look for
+   * @return A {@link Path}, or {@code null} if no {@link Path} with the given {@link Location}
+   *     exsists on this rail
+   */
+  @Nullable
+  private Path findPath(Path start, Location lookingFor) {
+    Path result = null;
+    Path backwards = start;
+    while (backwards.hasPrevious()) { // Look behind and onwards
+      Location here = backwards.getLocation().toCenterLocation();
+      if (here.equals(lookingFor.toCenterLocation())) {
+        result = backwards;
+        break;
+      }
+      backwards = backwards.previous();
+    }
+    if (result == null) { // If not yet found, try looking the other way
+      Path forwards = start;
+      while (forwards.hasNext()) {
+        Location here = forwards.getLocation().toCenterLocation();
+        if (here.equals(lookingFor.toCenterLocation())) {
+          result = forwards;
+          break;
+        }
+        forwards = forwards.previous();
+      }
+    }
+    return result;
+  }
+
+  private Path getNewNeighborPath(
       Path path,
       BlockFace direction,
       List<Double> differingX,
@@ -822,21 +859,8 @@ public class Payload extends ControllableGoal<PayloadDefinition>
     return null;
   }
 
-  // Listener
-
-  // Since 1.8 spigot does not have #setInvulnerable these methods protect the entity instead
-  @EventHandler
-  public void onVehicleDamage(final VehicleDamageEvent event) {
-    if (event.getVehicle() == payloadEntity) event.setCancelled(true);
-  }
-
-  @EventHandler
-  public void onVehicleEnter(final VehicleEnterEvent event) {
-    if (event.getVehicle() == payloadEntity) event.setCancelled(true);
-  }
-
-  @EventHandler
-  public void onVehicleDestroy(final VehicleDestroyEvent event) {
-    if (event.getVehicle() == payloadEntity) event.setCancelled(true);
+  /** Checks if the given {@link Minecart} is the payload minecart */
+  public boolean isPayload(Minecart minecart) {
+    return minecart == payloadEntity;
   }
 }

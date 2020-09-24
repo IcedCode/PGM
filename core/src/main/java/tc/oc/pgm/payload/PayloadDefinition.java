@@ -21,7 +21,7 @@ public class PayloadDefinition extends ControllableGoalDefinition {
   /** The primary owner, pushed toward the primary goal */
   private final TeamFactory primaryOwner;
 
-  // The optional secondary owner, if present they push towards the secondary goal
+  // The optional secondary owner, if present they can push towards the secondary goal
   @Nullable private final TeamFactory secondaryOwner;
 
   /** The radius of the payload (detecting players) */

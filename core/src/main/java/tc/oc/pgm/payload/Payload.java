@@ -2,7 +2,10 @@ package tc.oc.pgm.payload;
 
 import com.google.common.collect.ImmutableList;
 import java.time.Duration;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import javax.annotation.Nullable;
 import net.kyori.text.Component;
 import net.kyori.text.TextComponent;
@@ -197,7 +200,7 @@ public class Payload extends ControllableGoal<PayloadDefinition>
 
   @Override
   public ChatColor renderSidebarStatusColor(@Nullable Competitor competitor, Party viewer) {
-    return getControllingTeamColor();
+    return ChatColor.WHITE;
   }
 
   public String renderSidebarStatusText(@Nullable Competitor competitor, Party viewer) {
@@ -365,8 +368,8 @@ public class Payload extends ControllableGoal<PayloadDefinition>
   /**
    * Gets the next {@link PayloadCheckpoint} in the given direction
    *
-   * @param head {@code true} if the next checkpoint in the head direction should be returned
-   *     {@code} false if the next checkpoint in the tail direction should be returned}
+   * @param head {@code true} if the next checkpoint in the head direction should be returned {@code
+   *     false} if the next checkpoint in the tail direction should be returned}
    */
   private PayloadCheckpoint getNextCheckpoint(boolean head) {
     return checkpointMap.get(lastReachedCheckpointKey - (head ? -1 : 1));

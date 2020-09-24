@@ -26,6 +26,7 @@ import tc.oc.pgm.teams.TeamMatchModule;
 import tc.oc.pgm.teams.TeamModule;
 import tc.oc.pgm.util.material.MaterialMatcher;
 import tc.oc.pgm.util.xml.InvalidXMLException;
+import tc.oc.pgm.util.xml.Node;
 import tc.oc.pgm.util.xml.XMLUtils;
 
 public class PayloadModule implements MapModule<PayloadMatchModule> {
@@ -96,9 +97,9 @@ public class PayloadModule implements MapModule<PayloadMatchModule> {
     String name = el.getAttributeValue("name", "Payload");
     boolean visible = XMLUtils.parseBoolean(el.getAttribute("visible"), true);
 
-    Vector startingLocation = XMLUtils.parseVector(el.getAttribute("starting-location"));
+    Vector startingLocation = XMLUtils.parseVector(new Node(el.getChild("starting-location")));
 
-    Vector middleLocation = XMLUtils.parseVector(el.getAttribute("middle-location"));
+    Vector middleLocation = XMLUtils.parseVector(new Node(el.getChild("middle-location")));
 
     boolean shouldSecondaryTeamPushButNoGoal =
         XMLUtils.parseBoolean(el.getAttribute("secondary-push-nogoal"), false);
@@ -118,8 +119,10 @@ public class PayloadModule implements MapModule<PayloadMatchModule> {
     ControllableGoalDefinition.CaptureCondition captureCondition =
         ControllableGoalDefinition.parseCaptureCondition(el);
 
-    float radius = parseFloat("radius", 3.5f, el);
-    float height = parseFloat("height", 5f, el);
+    Element propertiesEl = el.getChild("properties");
+
+    float radius = parseFloat("radius", 3.5f, propertiesEl);
+    float height = parseFloat("height", 5f, propertiesEl);
 
     Element materialsElement = el.getChild("checkpoint-materials");
     MaterialMatcher checkpointMaterials =
@@ -136,9 +139,11 @@ public class PayloadModule implements MapModule<PayloadMatchModule> {
         permanentTailCheckpoints.add(Integer.parseInt(string.substring(1)));
     }
 
-    float primaryOwnerSpeed = parseFloat("primary-owner-speed", 1f, el);
-    float secondaryOwnerSpeed = parseFloat("secondary-owner-speed", 1f, el);
-    float neutralSpeed = parseFloat("neutral-speed", 0.2f, el);
+    Element speedEl = el.getChild("speeds");
+
+    float primaryOwnerSpeed = parseFloat("primary-owner-speed", 1f, speedEl);
+    float secondaryOwnerSpeed = parseFloat("secondary-owner-speed", 1f, speedEl);
+    float neutralSpeed = parseFloat("neutral-speed", 0.2f, speedEl);
 
     boolean permanent = XMLUtils.parseBoolean(el.getAttribute("permanent"), false);
 

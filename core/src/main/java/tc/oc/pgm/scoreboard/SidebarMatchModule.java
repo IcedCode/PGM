@@ -2,7 +2,6 @@ package tc.oc.pgm.scoreboard;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Ordering;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -462,8 +461,6 @@ public class SidebarMatchModule implements MatchModule, Listener {
       sortedCompetitors.retainAll(competitorsWithGoals);
 
       if (viewingParty instanceof Competitor) {
-        // Participants see competitors in arbitrary order, with their own at the top
-        sortedCompetitors.sort(Ordering.arbitrary());
 
         // Bump viewing party to the top of the list
         if (sortedCompetitors.remove(viewingParty)) {
@@ -533,12 +530,11 @@ public class SidebarMatchModule implements MatchModule, Listener {
 
       final Component footer = PGM.get().getConfiguration().getMatchFooter();
       if (footer != null) {
+        // Only shows footer if there are one or two rows available
         if (rows.size() < MAX_ROWS - 2) {
           rows.add("");
-          rows.add(LegacyComponentSerializer.legacy().serialize(footer));
-        } else {
-          rows.set(MAX_ROWS - 2, LegacyComponentSerializer.legacy().serialize(footer));
         }
+        rows.add(LegacyComponentSerializer.legacy().serialize(footer));
       }
 
       // Need at least one row for the sidebar to show

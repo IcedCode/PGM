@@ -66,7 +66,6 @@ import tc.oc.pgm.restart.RestartListener;
 import tc.oc.pgm.restart.ShouldRestartTask;
 import tc.oc.pgm.rotation.MapPoolManager;
 import tc.oc.pgm.rotation.RandomMapOrder;
-import tc.oc.pgm.tablist.LegacyMatchTabDisplay;
 import tc.oc.pgm.tablist.MatchTabManager;
 import tc.oc.pgm.util.FileUtils;
 import tc.oc.pgm.util.concurrent.BukkitExecutorService;
@@ -83,7 +82,6 @@ public class PGMPlugin extends JavaPlugin implements PGM, Listener {
   private List<MapSourceFactory> mapSourceFactories;
   private MatchManager matchManager;
   private MatchTabManager matchTabManager;
-  private LegacyMatchTabDisplay legacyMatchTabManager;
   private MapOrder mapOrder;
   private NameDecorationRegistry nameDecorationRegistry;
   private ScheduledExecutorService executorService;
@@ -191,9 +189,12 @@ public class PGMPlugin extends JavaPlugin implements PGM, Listener {
             config.getGroups().isEmpty() ? null : new ConfigDecorationProvider());
 
     // Sometimes match folders need to be cleaned up if the server previously crashed
-    for (File dir : getServer().getWorldContainer().listFiles()) {
-      if (dir.isDirectory() && dir.getName().startsWith("match")) {
-        FileUtils.delete(dir);
+    final File[] worldDirs = getServer().getWorldContainer().listFiles();
+    if (worldDirs != null) {
+      for (File dir : worldDirs) {
+        if (dir.isDirectory() && dir.getName().startsWith("match")) {
+          FileUtils.delete(dir);
+        }
       }
     }
 
@@ -206,7 +207,6 @@ public class PGMPlugin extends JavaPlugin implements PGM, Listener {
 
     if (config.showTabList()) {
       matchTabManager = new MatchTabManager(this);
-      legacyMatchTabManager = new LegacyMatchTabDisplay(this);
     }
 
     if (!config.getUptimeLimit().isNegative()) {
@@ -220,7 +220,6 @@ public class PGMPlugin extends JavaPlugin implements PGM, Listener {
   @Override
   public void onDisable() {
     if (matchTabManager != null) matchTabManager.disable();
-    if (legacyMatchTabManager != null) legacyMatchTabManager.disable();
     if (matchManager != null) matchManager.getMatches().forEachRemaining(Match::unload);
     if (vanishManager != null) vanishManager.disable();
     if (executorService != null) executorService.shutdown();
@@ -332,7 +331,6 @@ public class PGMPlugin extends JavaPlugin implements PGM, Listener {
     new BlockTransformListener(this).registerEvents();
     registerEvents(matchManager);
     if (matchTabManager != null) registerEvents(matchTabManager);
-    if (legacyMatchTabManager != null) registerEvents(legacyMatchTabManager);
     registerEvents(vanishManager);
     registerEvents(nameDecorationRegistry);
     registerEvents(new GeneralizingListener(this));

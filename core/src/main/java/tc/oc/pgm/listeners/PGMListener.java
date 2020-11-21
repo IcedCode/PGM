@@ -1,7 +1,6 @@
 package tc.oc.pgm.listeners;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-import static net.kyori.adventure.text.Component.join;
 import static net.kyori.adventure.text.Component.space;
 import static net.kyori.adventure.text.Component.text;
 import static net.kyori.adventure.text.Component.translatable;
@@ -37,6 +36,7 @@ import org.bukkit.event.vehicle.VehicleUpdateEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.util.Vector;
+import tc.oc.pgm.api.PGM;
 import tc.oc.pgm.api.Permissions;
 import tc.oc.pgm.api.event.BlockTransformEvent;
 import tc.oc.pgm.api.match.Match;
@@ -206,9 +206,17 @@ public class PGMListener implements Listener {
               + (staffOnly && (player.isVanished() || force) ? ".quiet" : "");
 
       SettingValue option = viewer.getSettings().getValue(SettingKey.JOIN);
-      if (option.equals(SettingValue.JOIN_ON)) {
-        Component component =
-            translatable(key, NamedTextColor.YELLOW, player.getName(NameStyle.CONCISE));
+      if (option.equals(SettingValue.JOIN_ON)
+          || (option.equals(SettingValue.JOIN_FRIENDS)
+              && PGM.get()
+                  .getFriendRegistry()
+                  .areFriends(player.getBukkit(), viewer.getBukkit()))) {
+        Component name =
+            PGM.get()
+                .getNameDecorationRegistry()
+                .getDecoratedNameComponent(player.getBukkit(), player.getParty().getColor());
+        Component component = translatable(key, NamedTextColor.YELLOW, name);
+
         viewer.sendMessage(
             staffOnly
                 ? ChatDispatcher.ADMIN_CHAT_PREFIX.append(component.color(NamedTextColor.YELLOW))

@@ -158,6 +158,8 @@ public class VanishManagerImpl implements VanishManager, Listener {
   @EventHandler(priority = EventPriority.HIGH)
   public void onJoin(PlayerJoinEvent event) {
     MatchPlayer player = matchManager.getPlayer(event.getPlayer());
+    if (!player.getBukkit().hasPermission(Permissions.VANISH)) return;
+
     if (isVanished(player.getId())) { // Player is already vanished
       player.setVanished(true);
     } else if (player

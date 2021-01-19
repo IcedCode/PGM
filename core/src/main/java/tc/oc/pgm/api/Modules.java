@@ -13,7 +13,6 @@ import tc.oc.pgm.blitz.BlitzMatchModule;
 import tc.oc.pgm.blitz.BlitzModule;
 import tc.oc.pgm.blockdrops.BlockDropsMatchModule;
 import tc.oc.pgm.blockdrops.BlockDropsModule;
-import tc.oc.pgm.bossbar.BossBarMatchModule;
 import tc.oc.pgm.broadcast.BroadcastMatchModule;
 import tc.oc.pgm.broadcast.BroadcastModule;
 import tc.oc.pgm.classes.ClassMatchModule;
@@ -77,9 +76,7 @@ import tc.oc.pgm.modules.MobsModule;
 import tc.oc.pgm.modules.ModifyBowProjectileMatchModule;
 import tc.oc.pgm.modules.ModifyBowProjectileModule;
 import tc.oc.pgm.modules.MultiTradeMatchModule;
-import tc.oc.pgm.modules.ProjectileTrailMatchModule;
 import tc.oc.pgm.modules.SoundsMatchModule;
-import tc.oc.pgm.modules.StatsMatchModule;
 import tc.oc.pgm.modules.TimeLockModule;
 import tc.oc.pgm.modules.ToolRepairMatchModule;
 import tc.oc.pgm.modules.ToolRepairModule;
@@ -108,6 +105,7 @@ import tc.oc.pgm.spawner.SpawnerModule;
 import tc.oc.pgm.spawns.SpawnMatchModule;
 import tc.oc.pgm.spawns.SpawnModule;
 import tc.oc.pgm.start.StartMatchModule;
+import tc.oc.pgm.stats.StatsMatchModule;
 import tc.oc.pgm.teams.TeamMatchModule;
 import tc.oc.pgm.teams.TeamModule;
 import tc.oc.pgm.timelimit.TimeLimitMatchModule;
@@ -145,7 +143,6 @@ public interface Modules {
 
   static void registerAll() {
     // MatchModules that are always created
-    register(BossBarMatchModule.class, BossBarMatchModule::new);
     register(EventFilterMatchModule.class, EventFilterMatchModule::new);
     register(MultiTradeMatchModule.class, MultiTradeMatchModule::new);
     register(DeathMessageMatchModule.class, DeathMessageMatchModule::new);
@@ -160,7 +157,9 @@ public interface Modules {
     register(FireworkMatchModule.class, FireworkMatchModule::new);
     register(StatsMatchModule.class, StatsMatchModule::new);
     register(MapmakerMatchModule.class, MapmakerMatchModule::new);
-    register(ProjectileTrailMatchModule.class, ProjectileTrailMatchModule::new);
+
+    // FIXME: Disabled due to lag - look into future optimization
+    // register(ProjectileTrailMatchModule.class, ProjectileTrailMatchModule::new);
 
     // Modules that help older player versions
     register(LegacyFlagBeamMatchModule.class, LegacyFlagBeamMatchModule::new);

@@ -1,5 +1,9 @@
 package tc.oc.pgm.command;
 
+import static net.kyori.adventure.text.Component.text;
+import static tc.oc.pgm.util.text.TextException.exception;
+import static tc.oc.pgm.util.text.TextException.noPermission;
+
 import app.ashcon.intake.Command;
 import java.util.ArrayList;
 import java.util.List;
@@ -13,7 +17,6 @@ import tc.oc.pgm.goals.ProximityMetric;
 import tc.oc.pgm.goals.TouchableGoal;
 import tc.oc.pgm.teams.Team;
 import tc.oc.pgm.teams.TeamMatchModule;
-import tc.oc.pgm.util.text.TextException;
 import tc.oc.pgm.util.text.TextTranslations;
 
 // TODO: make the output nicer and translate
@@ -24,7 +27,7 @@ public final class ProximityCommand {
       desc = "Show the progress of each objective")
   public void proximity(MatchPlayer player, Match match) {
     if (player != null && player.isParticipating()) {
-      throw TextException.noPermission();
+      throw noPermission();
     }
 
     // TODO: use components
@@ -73,11 +76,11 @@ public final class ProximityCommand {
     }
 
     if (lines.isEmpty()) {
-      throw TextException.of("command.emptyResult");
+      throw exception("command.emptyResult");
     }
 
     for (String line : lines) {
-      player.sendMessage(line);
+      player.sendMessage(text(line));
     }
   }
 }

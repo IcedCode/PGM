@@ -26,12 +26,14 @@ import tc.oc.pgm.teams.Team;
 import tc.oc.pgm.teams.TeamFactory;
 import tc.oc.pgm.teams.TeamMatchModule;
 import tc.oc.pgm.teams.TeamModule;
+import tc.oc.pgm.teams.Teams;
 import tc.oc.pgm.util.xml.InvalidXMLException;
+import tc.oc.pgm.util.xml.Node;
 import tc.oc.pgm.util.xml.XMLUtils;
 
 public class WoolModule implements MapModule {
   private static final Collection<MapTag> TAGS =
-      ImmutableList.of(MapTag.create("wool", "Capture the Wool", true, false));
+      ImmutableList.of(new MapTag("ctw", "wool", "Capture the Wool", true, false));
 
   protected final Multimap<TeamFactory, MonumentWoolFactory> woolFactories;
 
@@ -77,14 +79,14 @@ public class WoolModule implements MapModule {
     public WoolModule parse(MapFactory factory, Logger logger, Document doc)
         throws InvalidXMLException {
       Multimap<TeamFactory, MonumentWoolFactory> woolFactories = ArrayListMultimap.create();
-      TeamModule teamModule = factory.getModule(TeamModule.class);
+      TeamModule teamModule = factory.needModule(TeamModule.class);
       RegionParser parser = factory.getRegions();
 
       for (Element woolEl : XMLUtils.flattenElements(doc.getRootElement(), "wools", "wool")) {
         String id = woolEl.getAttributeValue("id");
         boolean craftable = Boolean.parseBoolean(woolEl.getAttributeValue("craftable", "true"));
         TeamFactory team =
-            teamModule.parseTeam(XMLUtils.getRequiredAttribute(woolEl, "team"), factory);
+            Teams.getTeam(new Node(XMLUtils.getRequiredAttribute(woolEl, "team")), factory);
         DyeColor color = XMLUtils.parseDyeColor(XMLUtils.getRequiredAttribute(woolEl, "color"));
         Region placement;
         if (factory.getProto().isOlderThan(MapProtos.MODULE_SUBELEMENT_VERSION)) {

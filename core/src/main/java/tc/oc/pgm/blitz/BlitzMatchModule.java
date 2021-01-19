@@ -1,11 +1,17 @@
 package tc.oc.pgm.blitz;
 
+import static net.kyori.adventure.text.Component.empty;
+import static net.kyori.adventure.text.Component.text;
+import static net.kyori.adventure.text.Component.translatable;
+import static net.kyori.adventure.title.Title.title;
+import static tc.oc.pgm.util.TimeUtils.fromTicks;
+
+import java.time.Duration;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
-import net.kyori.text.TextComponent;
-import net.kyori.text.TranslatableComponent;
-import net.kyori.text.format.TextColor;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.title.Title;
 import org.bukkit.Effect;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -62,6 +68,7 @@ public class BlitzMatchModule implements MatchModule, Listener {
   @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
   public void handleDeath(final MatchPlayerDeathEvent event) {
     MatchPlayer victim = event.getVictim();
+    if (config.getFilter().query(victim.getQuery()).isDenied()) return;
     if (victim.getParty() instanceof Competitor) {
       Competitor competitor = (Competitor) victim.getParty();
 
@@ -85,29 +92,28 @@ public class BlitzMatchModule implements MatchModule, Listener {
   public void handleJoin(final PlayerParticipationStartEvent event) {
     if (event.getMatch().isRunning()) {
       event.cancel(
-          TranslatableComponent.of(
-              "blitz.joinDenied", TranslatableComponent.of("gamemode.blitz.name", TextColor.AQUA)));
+          translatable(
+              "blitz.joinDenied", translatable("gamemode.blitz.name", NamedTextColor.AQUA)));
     }
   }
 
   @EventHandler
   public void handleSpawn(final ParticipantSpawnEvent event) {
-    if (this.config.broadcastLives) {
+    if (this.config.getBroadcastLives()) {
       int lives = this.lifeManager.getLives(event.getPlayer().getId());
       event
           .getPlayer()
           .showTitle(
-              TextComponent.empty(),
-              TranslatableComponent.of(
-                  "blitz.livesRemaining",
-                  TextColor.RED,
-                  TranslatableComponent.of(
-                      lives == 1 ? "misc.life" : "misc.lives",
-                      TextColor.AQUA,
-                      TextComponent.of(Integer.toString(lives)))),
-              0,
-              60,
-              20);
+              title(
+                  empty(),
+                  translatable(
+                      "blitz.livesRemaining",
+                      NamedTextColor.RED,
+                      translatable(
+                          lives == 1 ? "misc.life" : "misc.lives",
+                          NamedTextColor.AQUA,
+                          text(lives))),
+                  Title.Times.of(Duration.ZERO, fromTicks(60), fromTicks(20))));
     }
   }
 

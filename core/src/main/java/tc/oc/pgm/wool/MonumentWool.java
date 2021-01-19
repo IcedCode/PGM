@@ -1,9 +1,10 @@
 package tc.oc.pgm.wool;
 
+import static net.kyori.adventure.text.Component.translatable;
+
 import java.util.Collections;
 import javax.annotation.Nullable;
-import net.kyori.text.Component;
-import net.kyori.text.TranslatableComponent;
+import net.kyori.adventure.text.Component;
 import org.bukkit.ChatColor;
 import org.bukkit.DyeColor;
 import org.bukkit.Location;
@@ -12,7 +13,6 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.inventory.ItemStack;
-import tc.oc.pgm.api.event.PlayerItemTransferEvent;
 import tc.oc.pgm.api.match.Match;
 import tc.oc.pgm.api.party.Competitor;
 import tc.oc.pgm.api.party.Party;
@@ -26,6 +26,7 @@ import tc.oc.pgm.kits.ApplyKitEvent;
 import tc.oc.pgm.kits.ArmorKit;
 import tc.oc.pgm.teams.Team;
 import tc.oc.pgm.util.bukkit.BukkitUtils;
+import tc.oc.pgm.util.event.PlayerItemTransferEvent;
 import tc.oc.pgm.util.named.NameStyle;
 
 public class MonumentWool extends TouchableGoal<MonumentWoolFactory>
@@ -59,12 +60,16 @@ public class MonumentWool extends TouchableGoal<MonumentWoolFactory>
   // Remove @Nullable
   @Override
   public Team getOwner() {
-    return super.getOwner();
+    Team owner = super.getOwner();
+    if (owner == null) {
+      throw new IllegalStateException("wool " + getId() + " has no owner");
+    }
+    return owner;
   }
 
   @Override
   public Component getTouchMessage(ParticipantState toucher, boolean self) {
-    return TranslatableComponent.of(
+    return translatable(
         self ? "wool.touch.owned.you" : "wool.touch.owned.player",
         toucher.getName(NameStyle.COLOR),
         getComponentName(),
@@ -122,7 +127,7 @@ public class MonumentWool extends TouchableGoal<MonumentWoolFactory>
 
   @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
   public void onItemTransfer(PlayerItemTransferEvent event) {
-    if (event.isAcquiring()) handleWoolAcquisition(event.getPlayer(), event.getItemStack());
+    if (event.isAcquiring()) handleWoolAcquisition(event.getPlayer(), event.getItem());
   }
 
   @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)

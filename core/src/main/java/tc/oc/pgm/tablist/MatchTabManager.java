@@ -39,6 +39,9 @@ import tc.oc.pgm.util.tablist.TabManager;
 
 public class MatchTabManager extends TabManager implements Listener {
 
+  // Min and max delay to trigger an update after tablist is invalidated
+  private static final int MIN_DELAY = 100, MAX_DELAY = 2000, TIME_RATIO = 40;
+
   private final Map<Team, TeamTabEntry> teamEntries;
   private final Map<Match, MapTabEntry> mapEntries;
   private final Map<Match, TabEntry[]> legacyHeaderEntries;
@@ -47,6 +50,7 @@ public class MatchTabManager extends TabManager implements Listener {
 
   private Future<?> pingUpdateTask;
   private Future<?> renderTask;
+  private long lastUpdate = 0, renderTime = 0;
 
   public MatchTabManager(Plugin plugin) {
     this(
@@ -132,14 +136,17 @@ public class MatchTabManager extends TabManager implements Listener {
 
     if (this.renderTask == null) {
       Runnable render =
-          new Runnable() {
-            @Override
-            public void run() {
-              MatchTabManager.this.renderTask = null;
-              MatchTabManager.this.render();
-            }
+          () -> {
+            long start = System.currentTimeMillis();
+            MatchTabManager.this.renderTask = null;
+            MatchTabManager.this.render();
+            lastUpdate = System.currentTimeMillis();
+            renderTime = lastUpdate - start;
           };
-      this.renderTask = PGM.get().getExecutor().schedule(render, 250, TimeUnit.MILLISECONDS);
+
+      long nextUpdate = lastUpdate - System.currentTimeMillis() + (renderTime * TIME_RATIO);
+      nextUpdate = Math.min(Math.max(MIN_DELAY, nextUpdate), MAX_DELAY);
+      this.renderTask = PGM.get().getExecutor().schedule(render, nextUpdate, TimeUnit.MILLISECONDS);
     }
   }
 

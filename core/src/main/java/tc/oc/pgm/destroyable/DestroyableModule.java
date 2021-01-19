@@ -25,6 +25,7 @@ import tc.oc.pgm.regions.RegionModule;
 import tc.oc.pgm.regions.RegionParser;
 import tc.oc.pgm.teams.TeamFactory;
 import tc.oc.pgm.teams.TeamModule;
+import tc.oc.pgm.teams.Teams;
 import tc.oc.pgm.util.material.matcher.SingleMaterialMatcher;
 import tc.oc.pgm.util.xml.InvalidXMLException;
 import tc.oc.pgm.util.xml.Node;
@@ -33,7 +34,7 @@ import tc.oc.pgm.util.xml.XMLUtils;
 public class DestroyableModule implements MapModule {
 
   private static final Collection<MapTag> TAGS =
-      ImmutableList.of(MapTag.create("monument", "Destroy the Monument", true, false));
+      ImmutableList.of(new MapTag("dtm", "monument", "Destroy the Monument", true, false));
   protected final List<DestroyableFactory> destroyableFactories;
 
   public DestroyableModule(List<DestroyableFactory> destroyableFactories) {
@@ -86,7 +87,7 @@ public class DestroyableModule implements MapModule {
               ImmutableSet.of("destroyables"),
               ImmutableSet.of("destroyable"))) {
         TeamFactory owner =
-            teamModule.parseTeam(XMLUtils.getRequiredAttribute(destroyableEl, "owner"), context);
+            Teams.getTeam(new Node(XMLUtils.getRequiredAttribute(destroyableEl, "owner")), context);
         String name = XMLUtils.getRequiredAttribute(destroyableEl, "name").getValue();
 
         double destructionRequired = 1.0;

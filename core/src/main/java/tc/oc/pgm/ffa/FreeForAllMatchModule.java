@@ -1,5 +1,11 @@
 package tc.oc.pgm.ffa;
 
+import static net.kyori.adventure.key.Key.key;
+import static net.kyori.adventure.sound.Sound.sound;
+import static net.kyori.adventure.text.Component.join;
+import static net.kyori.adventure.text.Component.text;
+import static net.kyori.adventure.text.Component.translatable;
+
 import com.google.common.collect.Lists;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -10,10 +16,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import javax.annotation.Nullable;
-import net.kyori.text.Component;
-import net.kyori.text.TextComponent;
-import net.kyori.text.TranslatableComponent;
-import net.kyori.text.format.TextColor;
+import net.kyori.adventure.sound.Sound;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.ChatColor;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -29,10 +34,9 @@ import tc.oc.pgm.join.GenericJoinResult;
 import tc.oc.pgm.join.JoinHandler;
 import tc.oc.pgm.join.JoinMatchModule;
 import tc.oc.pgm.join.JoinResult;
-import tc.oc.pgm.join.QueuedParticipants;
+import tc.oc.pgm.match.QueuedParty;
 import tc.oc.pgm.start.StartMatchModule;
 import tc.oc.pgm.start.UnreadyReason;
-import tc.oc.pgm.util.chat.Sound;
 
 @ListenerScope(MatchScope.LOADED)
 public class FreeForAllMatchModule implements MatchModule, Listener, JoinHandler {
@@ -62,11 +66,9 @@ public class FreeForAllMatchModule implements MatchModule, Listener, JoinHandler
     @Override
     public Component getReason() {
       if (players == 1) {
-        return TranslatableComponent.of(
-            "join.wait.singular", TextComponent.of(String.valueOf(players), TextColor.AQUA));
+        return translatable("join.wait.singular", text(players, NamedTextColor.AQUA));
       } else {
-        return TranslatableComponent.of(
-            "join.wait.plural", TextComponent.of(String.valueOf(players), TextColor.AQUA));
+        return translatable("join.wait.plural", text(players, NamedTextColor.AQUA));
       }
     }
 
@@ -93,9 +95,13 @@ public class FreeForAllMatchModule implements MatchModule, Listener, JoinHandler
     this.match = match;
     this.options = options;
 
-    final List<ChatColor> colors = Lists.newArrayList(COLORS);
-    Collections.shuffle(colors);
-    colors.forEach(this.colors::push);
+    if (options.colors) {
+      final List<ChatColor> colors = Lists.newArrayList(COLORS);
+      Collections.shuffle(colors);
+      colors.forEach(this.colors::push);
+    } else {
+      colors.add(ChatColor.YELLOW);
+    }
   }
 
   private JoinMatchModule join() {
@@ -160,7 +166,6 @@ public class FreeForAllMatchModule implements MatchModule, Listener, JoinHandler
       // Whenever playersNeeded reaches a new minimum, reset the unready timeout
       if (playersNeeded < minPlayersNeeded) {
         minPlayersNeeded = playersNeeded;
-        smm.restartUnreadyTimeout();
       }
     }
   }
@@ -198,8 +203,8 @@ public class FreeForAllMatchModule implements MatchModule, Listener, JoinHandler
 
     MatchPlayer kickMe = kickable.get(match.getRandom().nextInt(kickable.size()));
 
-    kickMe.sendWarning(TranslatableComponent.of("leave.ok.priorityKick"));
-    kickMe.playSound(new Sound("mob.villager.hit"));
+    kickMe.sendWarning(translatable("leave.ok.priorityKick"));
+    kickMe.playSound(sound(key("mob.villager.hit"), Sound.Source.MASTER, 1, 1));
 
     match.setParty(kickMe, match.getDefaultParty());
 
@@ -236,11 +241,11 @@ public class FreeForAllMatchModule implements MatchModule, Listener, JoinHandler
       GenericJoinResult genericResult = (GenericJoinResult) result;
       switch (genericResult.getStatus()) {
         case FULL:
-          joining.sendWarning(TranslatableComponent.of("join.err.full"));
+          joining.sendWarning(translatable("join.err.full"));
           return true;
 
         case REDUNDANT:
-          joining.sendWarning(TranslatableComponent.of("join.err.alreadyJoined"));
+          joining.sendWarning(translatable("join.err.alreadyJoined"));
           return true;
       }
     }
@@ -260,7 +265,7 @@ public class FreeForAllMatchModule implements MatchModule, Listener, JoinHandler
   }
 
   @Override
-  public void queuedJoin(QueuedParticipants queue) {
+  public void queuedJoin(QueuedParty queue) {
     for (MatchPlayer player : queue.getOrderedPlayers()) {
       join(player, null, queryJoin(player, null));
     }
@@ -273,7 +278,7 @@ public class FreeForAllMatchModule implements MatchModule, Listener, JoinHandler
 
   public boolean forceJoin(MatchPlayer joining) {
     if (joining.getParty() instanceof Tribute) {
-      joining.sendWarning(TranslatableComponent.of("join.err.alreadyJoined"));
+      joining.sendWarning(translatable("join.err.alreadyJoined"));
     }
 
     return match.setParty(joining, getTribute(joining));
@@ -282,7 +287,7 @@ public class FreeForAllMatchModule implements MatchModule, Listener, JoinHandler
   @EventHandler(priority = EventPriority.MONITOR)
   public void onPartyChange(PlayerPartyChangeEvent event) {
     if (event.getNewParty() instanceof Tribute) {
-      event.getPlayer().sendMessage(TranslatableComponent.of("join.ok"));
+      event.getPlayer().sendMessage(translatable("join.ok"));
     }
     updateReadiness();
   }

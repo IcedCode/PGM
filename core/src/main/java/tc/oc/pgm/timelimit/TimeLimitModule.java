@@ -24,7 +24,7 @@ import tc.oc.pgm.util.xml.XMLUtils;
 
 public class TimeLimitModule implements MapModule<TimeLimitMatchModule> {
   private static final Collection<MapTag> TAGS =
-      ImmutableList.of(MapTag.create("timelimit", "Timelimit", false, true));
+      ImmutableList.of(new MapTag("timelimit", "Timelimit", false, true));
   private final @Nullable TimeLimit timeLimit;
 
   public TimeLimitModule(@Nullable TimeLimit limit) {
@@ -42,9 +42,10 @@ public class TimeLimitModule implements MapModule<TimeLimitMatchModule> {
   }
 
   public static class Factory implements MapModuleFactory<TimeLimitModule> {
+
     @Nullable
     @Override
-    public Collection<Class<? extends MapModule>> getSoftDependencies() {
+    public Collection<Class<? extends MapModule>> getWeakDependencies() {
       return ImmutableList.of(TeamModule.class);
     }
 

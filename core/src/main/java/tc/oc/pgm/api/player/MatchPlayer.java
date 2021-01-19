@@ -14,8 +14,8 @@ import tc.oc.pgm.api.party.Party;
 import tc.oc.pgm.api.setting.Settings;
 import tc.oc.pgm.filters.query.Query;
 import tc.oc.pgm.kits.Kit;
+import tc.oc.pgm.util.Audience;
 import tc.oc.pgm.util.bukkit.ViaUtils;
-import tc.oc.pgm.util.chat.Audience;
 import tc.oc.pgm.util.named.Named;
 
 /**
@@ -169,8 +169,8 @@ public interface MatchPlayer extends Audience, Named, Tickable, InventoryHolder 
    */
   boolean canSee(MatchPlayer other);
 
-  /** Reset the {@link MatchPlayer} when changing between {@link org.bukkit.GameMode}s. */
-  void resetGamemode();
+  /** Reset the {@link MatchPlayer} ability to interact with the world . */
+  void resetInteraction();
 
   /** Reset the {@link #getInventory()} of the {@link MatchPlayer}. */
   void resetInventory();

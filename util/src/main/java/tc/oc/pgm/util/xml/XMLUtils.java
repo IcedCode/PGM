@@ -1,5 +1,7 @@
 package tc.oc.pgm.util.xml;
 
+import static net.kyori.adventure.text.Component.text;
+
 import com.google.common.base.Predicate;
 import com.google.common.base.Splitter;
 import com.google.common.collect.*;
@@ -11,7 +13,7 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
-import net.kyori.text.Component;
+import net.kyori.adventure.text.Component;
 import org.bukkit.*;
 import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.enchantments.Enchantment;
@@ -348,23 +350,30 @@ public final class XMLUtils {
 
   public static <T extends Number & Comparable<T>> T parseNumber(
       Element el, Class<T> type, Range<T> range) throws InvalidXMLException {
-    T value = parseNumber(el, type);
-    if (!range.contains(value)) {
-      throw new InvalidXMLException(value + " is not in the range " + range, el);
-    }
-    return value;
+    return parseNumberInRange(new Node(el), type, range);
   }
 
   public static <T extends Number & Comparable<T>> T parseNumber(
       Attribute attr, Class<T> type, Range<T> range) throws InvalidXMLException {
-    T value = parseNumber(attr, type);
+    return parseNumberInRange(new Node(attr), type, range);
+  }
+
+  public static <T extends Number & Comparable<T>> T parseNumberInRange(
+      Node node, Class<T> type, Range<T> range) throws InvalidXMLException {
+    T value = parseNumber(node, type);
     if (!range.contains(value)) {
-      throw new InvalidXMLException(value + " is not in the range " + range, attr);
+      throw new InvalidXMLException(value + " is not in the range " + range, node);
     }
     return value;
   }
 
-  public static <T extends Number & Comparable<T>> T parseNumber(
+  public static <T extends Number & Comparable<T>> T parseNumberInRange(
+      Node node, Class<T> type, Range<T> range, T def) throws InvalidXMLException {
+    if (node == null) return def;
+    else return parseNumberInRange(node, type, range);
+  }
+
+  public static <T extends Number & Comparable<T>> T parseNumberInRange(
       Node node, String text, Class<T> type, Range<T> range) throws InvalidXMLException {
     T value = parseNumber(node, text, type);
     if (!range.contains(value)) {
@@ -382,11 +391,17 @@ public final class XMLUtils {
    * <p>[0, 1)
    *
    * <p>for a closed-open range from 0 to 1
+   *
+   * <p>Also supports singleton ranges derived from providing a number with no delimiter
    */
   public static <T extends Number & Comparable<T>> Range<T> parseNumericRange(
       Node node, Class<T> type) throws InvalidXMLException {
     Matcher matcher = RANGE_RE.matcher(node.getValue());
     if (!matcher.matches()) {
+      T value = parseNumber(node, node.getValue(), type, true);
+      if (value != null) {
+        return Range.singleton(value);
+      }
       throw new InvalidXMLException(
           "Invalid " + type.getSimpleName().toLowerCase() + " range '" + node.getValue() + "'",
           node);

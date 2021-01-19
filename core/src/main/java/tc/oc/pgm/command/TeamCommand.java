@@ -1,15 +1,17 @@
 package tc.oc.pgm.command;
 
+import static net.kyori.adventure.text.Component.text;
+import static net.kyori.adventure.text.Component.translatable;
+import static tc.oc.pgm.util.text.TextException.exception;
+
 import app.ashcon.intake.Command;
 import app.ashcon.intake.parametric.annotation.Switch;
 import app.ashcon.intake.parametric.annotation.Text;
 import com.google.common.collect.Range;
 import java.util.*;
 import javax.annotation.Nullable;
-import net.kyori.text.Component;
-import net.kyori.text.TextComponent;
-import net.kyori.text.TranslatableComponent;
-import net.kyori.text.format.TextColor;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.entity.Player;
 import tc.oc.pgm.api.Permissions;
 import tc.oc.pgm.api.match.Match;
@@ -18,9 +20,8 @@ import tc.oc.pgm.api.party.Party;
 import tc.oc.pgm.api.player.MatchPlayer;
 import tc.oc.pgm.teams.Team;
 import tc.oc.pgm.teams.TeamMatchModule;
-import tc.oc.pgm.util.chat.Audience;
+import tc.oc.pgm.util.Audience;
 import tc.oc.pgm.util.named.NameStyle;
-import tc.oc.pgm.util.text.TextException;
 import tc.oc.pgm.util.text.TextParser;
 
 public final class TeamCommand {
@@ -32,7 +33,7 @@ public final class TeamCommand {
   public void force(
       Match match, TeamMatchModule teams, MatchPlayer sender, Player player, @Nullable Party team) {
     final MatchPlayer joiner = match.getPlayer(player);
-    if (joiner == null) throw TextException.of("command.playerNotFound");
+    if (joiner == null) throw exception("command.playerNotFound");
 
     final Party oldParty = joiner.getParty();
     if (team == null) {
@@ -44,9 +45,9 @@ public final class TeamCommand {
     }
 
     sender.sendMessage(
-        TranslatableComponent.of(
+        translatable(
             "join.ok.force",
-            TextColor.GRAY,
+            NamedTextColor.GRAY,
             joiner.getName(NameStyle.FANCY),
             joiner.getParty().getName(),
             oldParty.getName()));
@@ -60,7 +61,7 @@ public final class TeamCommand {
   public void shuffle(
       Match match, TeamMatchModule teams, @Switch('a') boolean all, @Switch('f') boolean force) {
     if (match.isRunning() && !force) {
-      throw TextException.of("match.shuffle.err");
+      throw exception("match.shuffle.err");
     }
 
     List<MatchPlayer> players = new ArrayList<>(all ? match.getPlayers() : match.getParticipants());
@@ -69,7 +70,7 @@ public final class TeamCommand {
       teams.forceJoin(player, null);
     }
 
-    match.sendMessage(TranslatableComponent.of("match.shuffle.ok", TextColor.GREEN));
+    match.sendMessage(translatable("match.shuffle.ok", NamedTextColor.GREEN));
   }
 
   @Command(
@@ -81,19 +82,19 @@ public final class TeamCommand {
     if (newName.length() > 32) {
       newName = newName.substring(0, 32);
     } else if (!(team instanceof Team)) {
-      throw TextException.of("command.teamNotFound");
+      throw exception("command.teamNotFound");
     }
 
     for (Team other : teams.getTeams()) {
       if (other.getNameLegacy().equalsIgnoreCase(newName)) {
-        throw TextException.of("match.alias.err", TextComponent.of(newName));
+        throw exception("match.alias.err", text(newName));
       }
     }
 
-    final Component oldName = team.getName().color(TextColor.GRAY);
+    final Component oldName = team.getName().color(NamedTextColor.GRAY);
     ((Team) team).setName(newName);
 
-    match.sendMessage(TranslatableComponent.of("match.alias.ok", oldName, team.getName()));
+    match.sendMessage(translatable("match.alias.ok", oldName, team.getName()));
   }
 
   @Command(
@@ -121,10 +122,8 @@ public final class TeamCommand {
       }
 
       audience.sendMessage(
-          TranslatableComponent.of(
-              "match.resize.max",
-              team.getName(),
-              TextComponent.of(team.getMaxPlayers(), TextColor.AQUA)));
+          translatable(
+              "match.resize.max", team.getName(), text(team.getMaxPlayers(), NamedTextColor.AQUA)));
     }
   }
 
@@ -142,10 +141,8 @@ public final class TeamCommand {
       }
 
       audience.sendMessage(
-          TranslatableComponent.of(
-              "match.resize.min",
-              team.getName(),
-              TextComponent.of(team.getMinPlayers(), TextColor.AQUA)));
+          translatable(
+              "match.resize.min", team.getName(), text(team.getMinPlayers(), NamedTextColor.AQUA)));
     }
   }
 
@@ -159,7 +156,7 @@ public final class TeamCommand {
     }
 
     if (list.isEmpty()) {
-      throw TextException.of("command.teamNotFound");
+      throw exception("command.teamNotFound");
     }
     return list;
   }

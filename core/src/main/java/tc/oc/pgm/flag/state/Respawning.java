@@ -1,18 +1,19 @@
 package tc.oc.pgm.flag.state;
 
+import static net.kyori.adventure.text.Component.text;
+import static net.kyori.adventure.text.Component.translatable;
+
 import java.time.Duration;
 import javax.annotation.Nullable;
-import net.kyori.text.Component;
-import net.kyori.text.TextComponent;
-import net.kyori.text.TranslatableComponent;
-import net.kyori.text.format.TextColor;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import tc.oc.pgm.api.party.Party;
 import tc.oc.pgm.flag.Flag;
 import tc.oc.pgm.flag.Post;
 import tc.oc.pgm.goals.events.GoalStatusChangeEvent;
-import tc.oc.pgm.util.text.PeriodFormats;
+import tc.oc.pgm.util.text.TemporalComponent;
 
 /**
  * State of a flag while it is waiting to respawn at a {@link Post} after being {@link Captured}.
@@ -57,23 +58,22 @@ public class Respawning extends Spawned implements Returning {
       // Respawn is delayed
       String postName = this.respawnToPost.getPostName();
       Component timeComponent =
-          PeriodFormats.briefNaturalApproximate(respawnTime).color(TextColor.AQUA);
+          TemporalComponent.briefNaturalApproximate(respawnTime).color(NamedTextColor.AQUA);
 
       if (postName != null) {
         this.flag
             .getMatch()
             .sendMessage(
-                TranslatableComponent.of(
+                translatable(
                     "flag.willRespawn.named",
                     this.flag.getComponentName(),
-                    TextComponent.of(postName, TextColor.AQUA),
+                    text(postName, NamedTextColor.AQUA),
                     timeComponent));
       } else {
         this.flag
             .getMatch()
             .sendMessage(
-                TranslatableComponent.of(
-                    "flag.willRespawn", this.flag.getComponentName(), timeComponent));
+                translatable("flag.willRespawn", this.flag.getComponentName(), timeComponent));
       }
     }
   }
@@ -98,14 +98,14 @@ public class Respawning extends Spawned implements Returning {
     super.finishCountdown();
 
     if (!Duration.ZERO.equals(respawnTime)) {
-      this.respawn(TranslatableComponent.of("flag.respawn", this.flag.getComponentName()));
+      this.respawn(translatable("flag.respawn", this.flag.getComponentName()));
     } else if (!this.wasCaptured) {
       // Flag was dropped
-      this.respawn(TranslatableComponent.of("flag.return", this.flag.getComponentName()));
+      this.respawn(translatable("flag.return", this.flag.getComponentName()));
     } else if (this.wasDelayed) {
       // Flag was captured and respawn was delayed by a filter, so we announce that the flag has
       // respawned
-      this.respawn(TranslatableComponent.of("flag.respawn", this.flag.getComponentName()));
+      this.respawn(translatable("flag.respawn", this.flag.getComponentName()));
     }
   }
 

@@ -1,12 +1,16 @@
 package tc.oc.pgm.command;
 
+import static net.kyori.adventure.text.Component.space;
+import static net.kyori.adventure.text.Component.text;
+import static net.kyori.adventure.text.Component.translatable;
+import static tc.oc.pgm.util.text.TextException.exception;
+
 import app.ashcon.intake.Command;
 import app.ashcon.intake.parametric.annotation.Text;
 import javax.annotation.Nullable;
-import net.kyori.text.TextComponent;
-import net.kyori.text.TranslatableComponent;
-import net.kyori.text.format.TextColor;
-import net.kyori.text.format.TextDecoration;
+import net.kyori.adventure.text.TextComponent;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.ChatColor;
 import tc.oc.pgm.api.match.Match;
 import tc.oc.pgm.api.player.MatchPlayer;
@@ -14,7 +18,6 @@ import tc.oc.pgm.classes.ClassMatchModule;
 import tc.oc.pgm.classes.PlayerClass;
 import tc.oc.pgm.util.LegacyFormatUtils;
 import tc.oc.pgm.util.StringUtils;
-import tc.oc.pgm.util.text.TextException;
 import tc.oc.pgm.util.text.TextTranslations;
 
 public final class ClassCommand {
@@ -28,31 +31,30 @@ public final class ClassCommand {
 
     if (query == null) {
       player.sendMessage(
-          TranslatableComponent.of("match.class.current", TextColor.GREEN)
-              .append(TextComponent.space())
-              .append(
-                  TextComponent.of(currentClass.getName(), TextColor.GOLD, TextDecoration.BOLD)));
-      player.sendMessage(TranslatableComponent.of("match.class.view", TextColor.GOLD));
+          translatable("match.class.current", NamedTextColor.GREEN)
+              .append(space())
+              .append(text(currentClass.getName(), NamedTextColor.GOLD, TextDecoration.BOLD)));
+      player.sendMessage(translatable("match.class.view", NamedTextColor.GOLD));
     } else {
       final PlayerClass newClass = StringUtils.bestFuzzyMatch(query, classes.getClasses(), 0.9);
 
       if (newClass == null) {
-        throw TextException.of("match.class.notFound");
+        throw exception("match.class.notFound");
       }
 
       try {
         classes.setPlayerClass(player.getId(), newClass);
       } catch (IllegalStateException e) {
-        throw TextException.of("match.class.sticky");
+        throw exception("match.class.sticky");
       }
 
       player.sendMessage(
-          TranslatableComponent.of(
+          translatable(
               "match.class.ok",
-              TextColor.GREEN,
-              TextComponent.of(newClass.getName(), TextColor.GOLD, TextDecoration.UNDERLINED)));
+              NamedTextColor.GREEN,
+              text(newClass.getName(), NamedTextColor.GOLD, TextDecoration.UNDERLINED)));
       if (player.isParticipating()) {
-        player.sendMessage(TranslatableComponent.of("match.class.queue", TextColor.GREEN));
+        player.sendMessage(translatable("match.class.queue", NamedTextColor.GREEN));
       }
     }
   }
@@ -65,43 +67,41 @@ public final class ClassCommand {
     final PlayerClass currentClass = classes.getSelectedClass(player.getId());
 
     player.sendMessage(
-        LegacyFormatUtils.dashedChatMessage(
-            ChatColor.GOLD + TextTranslations.translate("match.class.title", player.getBukkit()),
-            "-",
-            ChatColor.RED.toString()));
+        text(
+            LegacyFormatUtils.dashedChatMessage(
+                ChatColor.GOLD
+                    + TextTranslations.translate("match.class.title", player.getBukkit()),
+                "-",
+                ChatColor.RED.toString())));
     int i = 1;
     for (PlayerClass cls : classes.getClasses()) {
-      StringBuilder result = new StringBuilder();
+      TextComponent.Builder result = text().append(text(i++ + ". "));
 
-      result.append(i++).append(". ");
+      NamedTextColor color;
 
       if (cls == currentClass) {
-        result.append(ChatColor.GOLD);
+        color = NamedTextColor.GOLD;
       } else if (cls.canUse(player.getBukkit())) {
-        result.append(ChatColor.GREEN);
+        color = NamedTextColor.GREEN;
       } else {
-        result.append(ChatColor.RED);
+        color = NamedTextColor.RED;
       }
 
-      if (cls == currentClass) result.append(ChatColor.UNDERLINE);
-      result.append(cls.getName());
+      result.append(
+          text(cls.getName(), color).decoration(TextDecoration.UNDERLINED, cls == currentClass));
 
       if (cls.getDescription() != null) {
-        result
-            .append(ChatColor.DARK_PURPLE)
-            .append(" - ")
-            .append(ChatColor.RESET)
-            .append(cls.getDescription());
+        result.append(text(" - ", NamedTextColor.DARK_PURPLE)).append(text(cls.getDescription()));
       }
 
-      player.sendMessage(result.toString());
+      player.sendMessage(result.build());
     }
   }
 
   private ClassMatchModule getClasses(Match match) {
     final ClassMatchModule classes = match.getModule(ClassMatchModule.class);
     if (classes == null) {
-      throw TextException.of("match.class.notEnabled");
+      throw exception("match.class.notEnabled");
     }
     return classes;
   }

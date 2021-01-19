@@ -1,14 +1,18 @@
 package tc.oc.pgm.spawns.states;
 
+import static net.kyori.adventure.text.Component.text;
+import static net.kyori.adventure.text.Component.translatable;
+
 import java.util.List;
 import javax.annotation.Nullable;
-import net.kyori.text.Component;
-import net.kyori.text.TextComponent;
-import net.kyori.text.TranslatableComponent;
-import net.kyori.text.format.TextColor;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.event.Event;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
+import tc.oc.pgm.api.match.MatchScope;
 import tc.oc.pgm.api.party.Competitor;
 import tc.oc.pgm.api.player.MatchPlayer;
 import tc.oc.pgm.events.PlayerJoinPartyEvent;
@@ -21,7 +25,14 @@ import tc.oc.pgm.util.nms.NMSHacks;
 
 /** Player is waiting to respawn after dying in-game */
 public class Dead extends Spawning {
-  private static final long CORPSE_ROT_TICKS = 15;
+  private static final long CORPSE_ROT_TICKS = 20;
+
+  private static final PotionEffect CONFUSION =
+      new PotionEffect(PotionEffectType.CONFUSION, 100, 0, true, false);
+  private static final PotionEffect BLINDNESS_SHORT =
+      new PotionEffect(PotionEffectType.BLINDNESS, 21, 0, true, false);
+  private static final PotionEffect BLINDNESS_LONG =
+      new PotionEffect(PotionEffectType.BLINDNESS, Integer.MAX_VALUE, 0, true, false);
 
   private final long deathTick;
   private boolean kitted, rotted;
@@ -47,13 +58,30 @@ public class Dead extends Spawning {
 
     // Show red vignette
     NMSHacks.showBorderWarning(player.getBukkit(), true);
+
+    // Flash/wobble the screen. If we don't delay this then the client glitches out
+    // when the player dies from a potion effect. I have no idea why it happens,
+    // but this fixes it. We could investigate a better fix at some point.
+    smm.getMatch()
+        .getExecutor(MatchScope.LOADED)
+        .execute(
+            () -> {
+              if (isCurrent() && bukkit.isOnline()) {
+                bukkit.addPotionEffect(options.blackout ? BLINDNESS_LONG : BLINDNESS_SHORT, true);
+                bukkit.addPotionEffect(CONFUSION, true);
+              }
+            });
   }
 
   @Override
   public void leaveState(List<Event> events) {
     player.setFrozen(false);
     player.setDead(false);
+
     NMSHacks.showBorderWarning(bukkit, false);
+
+    bukkit.removePotionEffect(PotionEffectType.BLINDNESS);
+    bukkit.removePotionEffect(PotionEffectType.CONFUSION);
 
     super.leaveState(events);
   }
@@ -77,7 +105,7 @@ public class Dead extends Spawning {
       this.rotted = true;
       // Make player invisible after the death animation is complete
       player.setVisible(false);
-      player.resetGamemode();
+      player.resetVisibility();
     }
 
     super.tick(); // May transition to a different state, so call last
@@ -113,16 +141,16 @@ public class Dead extends Spawning {
 
   @Override
   protected Component getTitle() {
-    return TranslatableComponent.of("deathScreen.title", TextColor.RED);
+    return translatable("deathScreen.title", NamedTextColor.RED);
   }
 
   @Override
   protected Component getSubtitle() {
     long ticks = ticksUntilRespawn();
     if (ticks > 0) {
-      return TranslatableComponent.of(
+      return translatable(
           spawnRequested ? "death.respawn.confirmed.time" : "death.respawn.unconfirmed.time",
-          TextComponent.of(String.format("%.1f", (ticks / (float) 20)), TextColor.AQUA));
+          text(String.format("%.1f", (ticks / (float) 20)), NamedTextColor.AQUA));
     } else {
       return super.getSubtitle();
     }
@@ -146,13 +174,13 @@ public class Dead extends Spawning {
     if (ticks % (ticks > 0 ? 20 : 100) == 0) {
       player.sendMessage(
           (ticks > 0
-                  ? TranslatableComponent.of(
+                  ? translatable(
                       spawnRequested
                           ? "death.respawn.confirmed.time"
                           : "death.respawn.unconfirmed.time",
-                      TextComponent.of((int) (ticks / (float) 20), TextColor.AQUA))
+                      text((int) (ticks / (float) 20), NamedTextColor.AQUA))
                   : super.getSubtitle())
-              .color(TextColor.GREEN));
+              .color(NamedTextColor.GREEN));
     }
   }
 }

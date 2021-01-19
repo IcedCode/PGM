@@ -1,6 +1,7 @@
 package tc.oc.pgm.match;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static tc.oc.pgm.util.text.PlayerComponent.player;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -11,8 +12,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Logger;
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import net.kyori.text.Component;
+import net.kyori.adventure.text.Component;
 import org.apache.commons.lang3.builder.CompareToBuilder;
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
@@ -22,7 +24,6 @@ import org.bukkit.World;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.attribute.AttributeModifier;
-import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
@@ -46,15 +47,14 @@ import tc.oc.pgm.api.time.Tick;
 import tc.oc.pgm.events.PlayerResetEvent;
 import tc.oc.pgm.kits.Kit;
 import tc.oc.pgm.kits.WalkSpeedKit;
+import tc.oc.pgm.util.Audience;
 import tc.oc.pgm.util.ClassLogger;
 import tc.oc.pgm.util.TimeUtils;
 import tc.oc.pgm.util.bukkit.ViaUtils;
-import tc.oc.pgm.util.chat.PlayerAudience;
 import tc.oc.pgm.util.named.NameStyle;
 import tc.oc.pgm.util.nms.NMSHacks;
-import tc.oc.pgm.util.text.types.PlayerComponent;
 
-public class MatchPlayerImpl implements MatchPlayer, PlayerAudience, Comparable<MatchPlayer> {
+public class MatchPlayerImpl implements MatchPlayer, Comparable<MatchPlayer> {
 
   // TODO: Probably should be moved to a better location
   private static final int FROZEN_VEHICLE_ENTITY_ID = NMSHacks.allocateEntityId();
@@ -67,6 +67,7 @@ public class MatchPlayerImpl implements MatchPlayer, PlayerAudience, Comparable<
   private final Match match;
   private final UUID id;
   private final WeakReference<Player> bukkit;
+  private final Audience audience;
   private final AtomicReference<Party> party;
   private final AtomicReference<PlayerQuery> query;
   private final AtomicBoolean frozen;
@@ -83,6 +84,7 @@ public class MatchPlayerImpl implements MatchPlayer, PlayerAudience, Comparable<
     this.match = match;
     this.id = player.getUniqueId();
     this.bukkit = new WeakReference<>(player);
+    this.audience = Audience.get(player);
     this.party = new AtomicReference<>(null);
     this.query = new AtomicReference<>(null);
     this.frozen = new AtomicBoolean(false);
@@ -202,24 +204,15 @@ public class MatchPlayerImpl implements MatchPlayer, PlayerAudience, Comparable<
   }
 
   @Override
-  public void resetGamemode() {
-    boolean participating = canInteract(),
-        allowFlight = !participating && !(isDead() && isLegacy());
-    logger.fine("Refreshing gamemode as " + (participating ? "participant" : "observer"));
+  public void resetInteraction() {
+    Player player = getBukkit();
+    if (player == null) return;
 
-    if (!participating) getBukkit().leaveVehicle();
+    boolean interact = canInteract();
 
-    // Due to a bug in updating player abilities in legacy versions, it's better to force
-    // them to adventure mode and not let them fly. Has the side effect that they can't fly on maps
-    // where respawn allows spectating while dead.
-    setGameMode(
-        participating ? GameMode.SURVIVAL : allowFlight ? GameMode.CREATIVE : GameMode.ADVENTURE);
-
-    this.getBukkit().setAllowFlight(allowFlight);
-    this.getBukkit().spigot().setAffectsSpawning(participating);
-    this.getBukkit().spigot().setCollidesWithEntities(participating);
-    this.getBukkit().setDisplayName(getBukkit().getDisplayName());
-    this.resetVisibility();
+    if (!interact) player.leaveVehicle();
+    player.spigot().setAffectsSpawning(interact);
+    player.spigot().setCollidesWithEntities(interact);
   }
 
   @Override
@@ -231,6 +224,7 @@ public class MatchPlayerImpl implements MatchPlayer, PlayerAudience, Comparable<
   @Override
   public void resetVisibility() {
     final Player bukkit = getBukkit();
+    if (bukkit == null) return;
 
     bukkit.showInvisibles(isObserving());
 
@@ -251,10 +245,9 @@ public class MatchPlayerImpl implements MatchPlayer, PlayerAudience, Comparable<
 
   @Override
   public void reset() {
-    getMatch().callEvent(new PlayerResetEvent(this));
-
-    setFrozen(false);
     Player bukkit = getBukkit();
+    if (bukkit == null) return;
+
     bukkit.closeInventory();
     resetInventory();
     bukkit.setArrowsStuck(0);
@@ -293,6 +286,8 @@ public class MatchPlayerImpl implements MatchPlayer, PlayerAudience, Comparable<
 
     // we only reset bed spawn here so people don't have to see annoying messages when they respawn
     bukkit.setBedSpawnLocation(null);
+
+    getMatch().callEvent(new PlayerResetEvent(this));
   }
 
   @Override
@@ -315,24 +310,15 @@ public class MatchPlayerImpl implements MatchPlayer, PlayerAudience, Comparable<
   public void setFrozen(boolean yes) {
     if (frozen.compareAndSet(!yes, yes)) {
       Player bukkit = getBukkit();
-      if (yes) {
-        resetGamemode();
+      if (bukkit == null) return;
 
-        NMSHacks.EntityMetadata metadata = NMSHacks.createEntityMetadata();
-        NMSHacks.setEntityMetadata(metadata, false, false, false, false, true, (short) 0);
-        NMSHacks.setArmorStandFlags(metadata, false, false, false, false);
-        NMSHacks.spawnLivingEntity(
-            bukkit,
-            EntityType.ARMOR_STAND,
-            FROZEN_VEHICLE_ENTITY_ID,
-            bukkit.getLocation().subtract(0, 1.1, 0),
-            metadata);
+      if (yes) {
+        NMSHacks.spawnFreezeEntity(bukkit, FROZEN_VEHICLE_ENTITY_ID, isLegacy());
         NMSHacks.entityAttach(bukkit, bukkit.getEntityId(), FROZEN_VEHICLE_ENTITY_ID, false);
       } else {
         NMSHacks.destroyEntities(bukkit, FROZEN_VEHICLE_ENTITY_ID);
-
-        resetGamemode();
       }
+      resetInteraction();
     }
   }
 
@@ -411,7 +397,7 @@ public class MatchPlayerImpl implements MatchPlayer, PlayerAudience, Comparable<
 
   @Override
   public Component getName(NameStyle style) {
-    return PlayerComponent.of(getBukkit(), style);
+    return player(getBukkit(), style);
   }
 
   @Override
@@ -421,7 +407,9 @@ public class MatchPlayerImpl implements MatchPlayer, PlayerAudience, Comparable<
 
   @Override
   public String getPrefixedName() {
-    return PGM.get().getNameDecorationRegistry().getDecoratedName(getBukkit(), getParty());
+    return PGM.get()
+        .getNameDecorationRegistry()
+        .getDecoratedName(getBukkit(), getParty().getColor());
   }
 
   @Override
@@ -441,8 +429,8 @@ public class MatchPlayerImpl implements MatchPlayer, PlayerAudience, Comparable<
   }
 
   @Override
-  public Player getAudience() {
-    return getBukkit();
+  public @Nonnull Audience audience() {
+    return audience;
   }
 
   @Override

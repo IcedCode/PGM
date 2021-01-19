@@ -2,7 +2,7 @@ package tc.oc.pgm.goals;
 
 import java.util.logging.Logger;
 import javax.annotation.Nullable;
-import net.kyori.text.Component;
+import net.kyori.adventure.text.Component;
 import org.bukkit.ChatColor;
 import org.bukkit.Color;
 import org.bukkit.DyeColor;
@@ -102,7 +102,7 @@ public abstract class SimpleGoal<T extends GoalDefinition> implements Goal<T> {
     return ChatColor.WHITE;
   }
 
-  public String renderSidebarLabelText(@Nullable Competitor competitor, Party viewer) {
-    return getName();
+  public Component renderSidebarLabelText(@Nullable Competitor competitor, Party viewer) {
+    return getComponentName();
   }
 }

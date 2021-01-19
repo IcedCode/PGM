@@ -1,15 +1,21 @@
 package tc.oc.pgm.flag.state;
 
+import static net.kyori.adventure.text.Component.empty;
+import static net.kyori.adventure.text.Component.text;
+import static net.kyori.adventure.text.Component.translatable;
+import static net.kyori.adventure.title.Title.title;
+import static tc.oc.pgm.util.TimeUtils.fromTicks;
+
+import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
-import net.kyori.text.Component;
-import net.kyori.text.TextComponent;
-import net.kyori.text.TranslatableComponent;
-import net.kyori.text.format.TextColor;
-import net.kyori.text.format.TextDecoration;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
+import net.kyori.adventure.title.Title;
 import org.bukkit.Location;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
@@ -23,6 +29,7 @@ import tc.oc.pgm.api.party.Competitor;
 import tc.oc.pgm.api.party.Party;
 import tc.oc.pgm.api.player.MatchPlayer;
 import tc.oc.pgm.api.player.ParticipantState;
+import tc.oc.pgm.filters.query.PlayerQuery;
 import tc.oc.pgm.filters.query.PlayerStateQuery;
 import tc.oc.pgm.flag.Flag;
 import tc.oc.pgm.flag.FlagDefinition;
@@ -65,10 +72,10 @@ public class Carried extends Spawned implements Missing {
         this.flag
             .getMatch()
             .sendMessage(
-                TranslatableComponent.of(
+                translatable(
                     "flag.willRespawn.next",
                     this.flag.getComponentName(),
-                    TextComponent.of(postName, TextColor.AQUA)));
+                    text(postName, NamedTextColor.AQUA)));
       }
     }
   }
@@ -130,7 +137,7 @@ public class Carried extends Spawned implements Missing {
     SidebarMatchModule smm = this.flag.getMatch().getModule(SidebarMatchModule.class);
     if (smm != null) smm.stopBlinkingGoal(this.flag);
 
-    this.carrier.showHotbar(TextComponent.empty());
+    this.carrier.sendActionBar(empty());
 
     this.carrier.getInventory().remove(this.flag.getBannerItem());
     this.carrier.getInventory().setHelmet(this.helmetItem);
@@ -162,24 +169,24 @@ public class Carried extends Spawned implements Missing {
       if (this.flag.getDefinition().getCarryMessage() != null) {
         message = this.flag.getDefinition().getCarryMessage();
       } else {
-        message = TranslatableComponent.of("flag.carrying", this.flag.getComponentName());
+        message = translatable("flag.carrying", this.flag.getComponentName());
       }
 
-      return message.color(TextColor.AQUA).decoration(TextDecoration.BOLD, true);
+      return message.color(NamedTextColor.AQUA).decoration(TextDecoration.BOLD, true);
     } else {
       if (this.deniedByNet.getDenyMessage() != null) {
         message = this.deniedByNet.getDenyMessage();
       } else if (this.deniedByFlag != null) {
         message =
-            TranslatableComponent.of(
+            translatable(
                 "flag.captureDenied.byFlag",
                 this.flag.getComponentName(),
                 this.deniedByFlag.getComponentName());
       } else {
-        message = TranslatableComponent.of("flag.captureDenied", this.flag.getComponentName());
+        message = translatable("flag.captureDenied", this.flag.getComponentName());
       }
 
-      return message.color(TextColor.RED).decoration(TextDecoration.BOLD, true);
+      return message.color(NamedTextColor.RED).decoration(TextDecoration.BOLD, true);
     }
   }
 
@@ -188,11 +195,12 @@ public class Carried extends Spawned implements Missing {
     super.tickRunning();
 
     Component message = this.getMessage();
-    this.carrier.showHotbar(message);
+    this.carrier.sendActionBar(message);
 
     if (!message.equals(this.lastMessage)) {
       this.lastMessage = message;
-      this.carrier.showTitle(TextComponent.empty(), message, 0, 5, 35);
+      this.carrier.showTitle(
+          title(empty(), message, Title.Times.of(Duration.ZERO, fromTicks(5), fromTicks(35))));
     }
 
     ScoreMatchModule smm = this.flag.getMatch().getModule(ScoreMatchModule.class);
@@ -220,7 +228,7 @@ public class Carried extends Spawned implements Missing {
 
   protected void dropFlag() {
     for (Location dropLocation : this.dropLocations) {
-      if (this.flag.canDropAt(dropLocation)) {
+      if (this.flag.canDrop(new PlayerQuery(null, carrier, dropLocation))) {
         this.flag.transition(new Dropped(this.flag, this.post, dropLocation, this.carrier));
         return;
       }
@@ -231,13 +239,12 @@ public class Carried extends Spawned implements Missing {
   }
 
   protected void captureFlag(Net net) {
-    this.carrier.sendMessage(
-        TranslatableComponent.of("flag.capture.you", this.flag.getComponentName()));
+    this.carrier.sendMessage(translatable("flag.capture.you", this.flag.getComponentName()));
 
     this.flag
         .getMatch()
         .sendMessage(
-            TranslatableComponent.of(
+            translatable(
                 "flag.capture.player",
                 this.flag.getComponentName(),
                 this.carrier.getName(NameStyle.COLOR)));
@@ -327,7 +334,10 @@ public class Carried extends Spawned implements Missing {
     if (this.isCarrier(event.getPlayer())) {
       Location playerLoc = event.getTo();
 
-      if (this.flag.canDropAt(playerLoc)) {
+      // Only check the filter if there are no other possible fallback locations and the last drop
+      // location hasn't already been chacked
+      if ((dropLocations.isEmpty() || !dropLocations.peekLast().equals(playerLoc))
+          && flag.canDrop(new PlayerQuery(null, carrier, playerLoc))) {
         if (this.dropLocations.size() >= DROP_QUEUE_SIZE) this.dropLocations.removeLast();
         this.dropLocations.addFirst(playerLoc);
       }

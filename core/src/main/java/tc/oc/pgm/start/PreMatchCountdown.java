@@ -1,19 +1,24 @@
 package tc.oc.pgm.start;
 
+import static net.kyori.adventure.key.Key.key;
+import static net.kyori.adventure.sound.Sound.sound;
+import static net.kyori.adventure.text.Component.translatable;
+
 import java.time.Duration;
-import net.kyori.text.TranslatableComponent;
+import net.kyori.adventure.bossbar.BossBar;
+import net.kyori.adventure.sound.Sound;
 import tc.oc.pgm.api.match.Match;
 import tc.oc.pgm.api.match.MatchPhase;
 import tc.oc.pgm.countdowns.MatchCountdown;
-import tc.oc.pgm.util.chat.Sound;
 
 /** Common base for countdowns leading up to match start */
 public abstract class PreMatchCountdown extends MatchCountdown {
 
-  protected static final Sound COUNT_SOUND = new Sound("note.pling", 1f, 1.19f);
+  protected static final Sound COUNT_SOUND =
+      sound(key("note.pling"), Sound.Source.MASTER, 1f, 1.19f);
 
-  public PreMatchCountdown(Match match) {
-    super(match);
+  public PreMatchCountdown(Match match, BossBar.Color color) {
+    super(match, color);
   }
 
   @Override
@@ -34,7 +39,7 @@ public abstract class PreMatchCountdown extends MatchCountdown {
   public void onCancel(Duration remaining, Duration total) {
     super.onCancel(remaining, total);
     getMatch().setPhase(MatchPhase.IDLE);
-    getMatch().sendWarning(TranslatableComponent.of("broadcast.startCancel"));
+    getMatch().sendWarning(translatable("broadcast.startCancel"));
   }
 
   @Override

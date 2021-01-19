@@ -21,9 +21,9 @@ import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerAttackEntityEvent;
 import org.bukkit.event.player.PlayerInitialSpawnEvent;
-import org.bukkit.event.player.PlayerInteractEvent;
 import tc.oc.pgm.api.PGM;
-import tc.oc.pgm.api.event.PlayerItemTransferEvent;
+import tc.oc.pgm.api.filter.Filter;
+import tc.oc.pgm.api.filter.query.Query;
 import tc.oc.pgm.api.match.Match;
 import tc.oc.pgm.api.match.MatchModule;
 import tc.oc.pgm.api.match.MatchScope;
@@ -35,14 +35,15 @@ import tc.oc.pgm.api.party.Competitor;
 import tc.oc.pgm.api.party.event.CompetitorRemoveEvent;
 import tc.oc.pgm.api.player.MatchPlayer;
 import tc.oc.pgm.api.player.event.MatchPlayerDeathEvent;
+import tc.oc.pgm.api.player.event.ObserverInteractEvent;
 import tc.oc.pgm.api.time.Tick;
 import tc.oc.pgm.events.ListenerScope;
 import tc.oc.pgm.events.PlayerJoinPartyEvent;
 import tc.oc.pgm.events.PlayerPartyChangeEvent;
-import tc.oc.pgm.modules.EventFilterMatchModule;
 import tc.oc.pgm.spawns.states.Joining;
 import tc.oc.pgm.spawns.states.Observing;
 import tc.oc.pgm.spawns.states.State;
+import tc.oc.pgm.util.event.PlayerItemTransferEvent;
 
 @ListenerScope(MatchScope.LOADED)
 public class SpawnMatchModule implements MatchModule, Listener, Tickable {
@@ -65,8 +66,12 @@ public class SpawnMatchModule implements MatchModule, Listener, Tickable {
     return match;
   }
 
-  public RespawnOptions getRespawnOptions() {
-    return module.respawnOptions;
+  public RespawnOptions getRespawnOptions(Query query) {
+    return module.respawnOptions.stream()
+        .filter(
+            respawnOption -> respawnOption.filter.query(query).equals(Filter.QueryResponse.ALLOW))
+        .findFirst()
+        .orElseThrow(() -> new IllegalStateException("No respawn option could be used"));
   }
 
   public Spawn getDefaultSpawn() {
@@ -211,13 +216,10 @@ public class SpawnMatchModule implements MatchModule, Listener, Tickable {
     }
   }
 
-  /**
-   * This handler must run after {@link EventFilterMatchModule#onInteract(PlayerInteractEvent)} and
-   * before the event handler in WorldEdit for compass clicking.
-   */
-  @EventHandler(priority = EventPriority.LOW)
-  public void onInteract(final PlayerInteractEvent event) {
-    MatchPlayer player = match.getPlayer(event.getPlayer());
+  // Listen on HIGH so the picker can handle this first
+  @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+  public void onObserverInteract(final ObserverInteractEvent event) {
+    MatchPlayer player = event.getPlayer();
     if (player != null) {
       State state = states.get(player);
       if (state != null) state.onEvent(event);

@@ -1,5 +1,9 @@
 package tc.oc.pgm.command.graph;
 
+import static net.kyori.adventure.text.Component.text;
+import static net.kyori.adventure.text.Component.translatable;
+import static tc.oc.pgm.util.text.TextException.unknown;
+
 import app.ashcon.intake.CommandException;
 import app.ashcon.intake.InvalidUsageException;
 import app.ashcon.intake.InvocationCommandException;
@@ -7,13 +11,12 @@ import app.ashcon.intake.bukkit.BukkitIntake;
 import app.ashcon.intake.fluent.CommandGraph;
 import app.ashcon.intake.util.auth.AuthorizationException;
 import com.google.common.base.Joiner;
-import net.kyori.text.TextComponent;
-import net.kyori.text.TranslatableComponent;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.util.ComponentMessageThrowable;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.plugin.Plugin;
-import tc.oc.pgm.util.chat.Audience;
-import tc.oc.pgm.util.text.TextException;
+import tc.oc.pgm.util.Audience;
 
 public final class CommandExecutor extends BukkitIntake {
 
@@ -31,29 +34,32 @@ public final class CommandExecutor extends BukkitIntake {
           .getDispatcher()
           .call(this.getCommand(command, args), this.getNamespace(sender));
     } catch (AuthorizationException e) {
-      audience.sendWarning(TranslatableComponent.of("misc.noPermission"));
+      audience.sendWarning(translatable("misc.noPermission"));
     } catch (InvocationCommandException e) {
-      if (e.getCause() instanceof TextException) {
-        audience.sendWarning(((TextException) e.getCause()).getText());
+      if (e.getCause() instanceof ComponentMessageThrowable) {
+        final Component message = ((ComponentMessageThrowable) e.getCause()).componentMessage();
+        if (message != null) {
+          audience.sendWarning(message);
+        }
       } else {
-        audience.sendWarning(TextException.unknown(e).getText());
+        audience.sendWarning(unknown(e).componentMessage());
         e.printStackTrace();
       }
     } catch (InvalidUsageException e) {
       if (e.getMessage() != null) {
-        audience.sendWarning(TextComponent.of(e.getMessage()));
+        audience.sendWarning(text(e.getMessage()));
       }
 
       if (e.isFullHelpSuggested()) {
         audience.sendWarning(
-            TextComponent.of(
+            text(
                 "/"
                     + Joiner.on(' ').join(e.getAliasStack())
                     + " "
                     + e.getCommand().getDescription().getUsage()));
       }
     } catch (CommandException e) {
-      audience.sendMessage(TextComponent.of(e.getMessage()));
+      audience.sendMessage(text(e.getMessage()));
     }
 
     return false;

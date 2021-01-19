@@ -1,12 +1,12 @@
 package tc.oc.pgm.tracker.info;
 
 import javax.annotation.Nullable;
-import net.kyori.text.Component;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
 import org.bukkit.entity.FallingBlock;
 import tc.oc.pgm.api.player.ParticipantState;
 import tc.oc.pgm.api.tracker.info.DamageInfo;
-import tc.oc.pgm.util.text.MinecraftTranslations;
+import tc.oc.pgm.util.text.MinecraftComponent;
 
 public class FallingBlockInfo extends EntityInfo implements DamageInfo {
 
@@ -32,7 +32,7 @@ public class FallingBlockInfo extends EntityInfo implements DamageInfo {
 
   @Override
   public Component getName() {
-    return MinecraftTranslations.getMaterial(getMaterial());
+    return MinecraftComponent.material(getMaterial());
   }
 
   @Override

@@ -1,16 +1,17 @@
 package tc.oc.pgm.flag;
 
+import static net.kyori.adventure.key.Key.key;
+import static net.kyori.adventure.sound.Sound.sound;
+import static net.kyori.adventure.text.Component.translatable;
+
 import com.google.common.collect.ImmutableSet;
 import java.util.Iterator;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import javax.annotation.Nullable;
-import net.kyori.text.Component;
-import net.kyori.text.TextComponent;
-import net.kyori.text.TranslatableComponent;
-import net.kyori.text.format.TextColor;
-import net.kyori.text.serializer.legacy.LegacyComponentSerializer;
+import net.kyori.adventure.sound.Sound;
+import net.kyori.adventure.text.Component;
 import org.bukkit.ChatColor;
 import org.bukkit.DyeColor;
 import org.bukkit.Location;
@@ -31,6 +32,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BannerMeta;
 import org.bukkit.util.BlockVector;
 import tc.oc.pgm.api.event.BlockTransformEvent;
+import tc.oc.pgm.api.filter.query.LocationQuery;
 import tc.oc.pgm.api.filter.query.Query;
 import tc.oc.pgm.api.match.Match;
 import tc.oc.pgm.api.module.exception.ModuleLoadException;
@@ -59,10 +61,10 @@ import tc.oc.pgm.spawns.events.ParticipantDespawnEvent;
 import tc.oc.pgm.teams.Team;
 import tc.oc.pgm.teams.TeamMatchModule;
 import tc.oc.pgm.util.bukkit.BukkitUtils;
-import tc.oc.pgm.util.chat.Sound;
 import tc.oc.pgm.util.material.Materials;
 import tc.oc.pgm.util.named.NameStyle;
 import tc.oc.pgm.util.text.TextFormatter;
+import tc.oc.pgm.util.text.TextTranslations;
 
 public class Flag extends TouchableGoal<FlagDefinition> implements Listener {
 
@@ -71,13 +73,19 @@ public class Flag extends TouchableGoal<FlagDefinition> implements Listener {
   public static final String DROPPED_SYMBOL = "\u2691"; // ⚑
   public static final String CARRIED_SYMBOL = "\u2794"; // ➔
 
-  public static final Sound PICKUP_SOUND_OWN = new Sound("mob.wither.idle", 0.7f, 1.2f);
-  public static final Sound DROP_SOUND_OWN = new Sound("mob.wither.hurt", 0.7f, 1);
-  public static final Sound RETURN_SOUND_OWN = new Sound("mob.zombie.unfect", 1.1f, 1.2f);
+  public static final Sound PICKUP_SOUND_OWN =
+      sound(key("mob.wither.idle"), Sound.Source.MASTER, 0.7f, 1.2f);
+  public static final Sound DROP_SOUND_OWN =
+      sound(key("mob.wither.hurt"), Sound.Source.MASTER, 0.7f, 1);
+  public static final Sound RETURN_SOUND_OWN =
+      sound(key("mob.zombie.infect"), Sound.Source.MASTER, 1.1f, 1.2f);
 
-  public static final Sound PICKUP_SOUND = new Sound("fireworks.largeBlast_far", 1f, 0.7f);
-  public static final Sound DROP_SOUND = new Sound("fireworks.twinkle_far", 1f, 1f);
-  public static final Sound RETURN_SOUND = new Sound("fireworks.twinkle_far", 1f, 1f);
+  public static final Sound PICKUP_SOUND =
+      sound(key("entity.firework_rocket.blast_far"), Sound.Source.MASTER, 1f, 0.7f);
+  public static final Sound DROP_SOUND =
+      sound(key("entity.firework_rocket.twinkle_far"), Sound.Source.MASTER, 1f, 1f);
+  public static final Sound RETURN_SOUND =
+      sound(key("entity.firework_rocket.twinkle_far"), Sound.Source.MASTER, 1f, 1f);
 
   private final ImmutableSet<Net> nets;
   private final Location bannerLocation;
@@ -179,16 +187,17 @@ public class Flag extends TouchableGoal<FlagDefinition> implements Listener {
     return color;
   }
 
-  public TextColor getChatColor() {
-    return TextFormatter.convert(BukkitUtils.dyeColorToChatColor(this.getDyeColor()));
+  public ChatColor getBukkitColor() {
+    return BukkitUtils.dyeColorToChatColor(this.getDyeColor());
+  }
+
+  @Override
+  public Component getComponentName() {
+    return super.getComponentName().color(TextFormatter.convert(getBukkitColor()));
   }
 
   public String getColoredName() {
-    return LegacyComponentSerializer.INSTANCE.serialize(getComponentName());
-  }
-
-  public Component getComponentName() {
-    return TextComponent.of(getName(), getChatColor());
+    return TextTranslations.translateLegacy(getComponentName(), null);
   }
 
   public ImmutableSet<Net> getNets() {
@@ -230,6 +239,11 @@ public class Flag extends TouchableGoal<FlagDefinition> implements Listener {
   public boolean canDropOn(BlockState base) {
     return base.getType().isSolid()
         || (getDefinition().canDropOnWater() && Materials.isWater(base.getType()));
+  }
+
+  public boolean canDrop(LocationQuery query) {
+    return canDropAt(query.getLocation())
+        && getDefinition().getDropFilter().query(query).isAllowed();
   }
 
   public boolean canDropAt(Location location) {
@@ -296,9 +310,9 @@ public class Flag extends TouchableGoal<FlagDefinition> implements Listener {
   @Override
   public Component getTouchMessage(ParticipantState toucher, boolean self) {
     if (self) {
-      return TranslatableComponent.of("flag.touch.you", getComponentName());
+      return translatable("flag.touch.you", getComponentName());
     } else {
-      return TranslatableComponent.of(
+      return translatable(
           "flag.touch.player", getComponentName(), toucher.getName(NameStyle.COLOR));
     }
   }

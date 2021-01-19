@@ -1,18 +1,22 @@
 package tc.oc.pgm.spawns.states;
 
+import static net.kyori.adventure.text.Component.translatable;
+import static net.kyori.adventure.title.Title.title;
+import static tc.oc.pgm.util.TimeUtils.fromTicks;
+
+import java.time.Duration;
 import javax.annotation.Nullable;
-import net.kyori.text.Component;
-import net.kyori.text.TranslatableComponent;
-import net.kyori.text.format.TextColor;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.title.Title;
 import org.bukkit.Location;
-import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.player.PlayerAttackEntityEvent;
-import org.bukkit.event.player.PlayerInteractEvent;
-import tc.oc.pgm.api.event.PlayerItemTransferEvent;
 import tc.oc.pgm.api.player.MatchPlayer;
+import tc.oc.pgm.api.player.event.ObserverInteractEvent;
 import tc.oc.pgm.spawns.Spawn;
 import tc.oc.pgm.spawns.SpawnMatchModule;
+import tc.oc.pgm.util.event.PlayerItemTransferEvent;
 
 /** Player is waiting to spawn as a participant */
 public abstract class Spawning extends Participating {
@@ -29,7 +33,8 @@ public abstract class Spawning extends Participating {
     super.enterState();
 
     player.setDead(true);
-    player.resetGamemode();
+    player.resetInteraction();
+    player.resetVisibility();
   }
 
   public void requestSpawn() {
@@ -37,13 +42,9 @@ public abstract class Spawning extends Participating {
   }
 
   @Override
-  public void onEvent(PlayerInteractEvent event) {
+  public void onEvent(ObserverInteractEvent event) {
     super.onEvent(event);
-    event.setCancelled(true);
-    if (event.getAction() == Action.LEFT_CLICK_AIR
-        || event.getAction() == Action.LEFT_CLICK_BLOCK) {
-      requestSpawn();
-    }
+    requestSpawn();
   }
 
   @Override
@@ -99,18 +100,22 @@ public abstract class Spawning extends Participating {
   public void sendMessage() {}
 
   public void updateTitle() {
-    player.showTitle(getTitle(), getSubtitle().color(TextColor.GREEN), 0, 3, 3);
+    player.showTitle(
+        title(
+            getTitle(),
+            getSubtitle().color(NamedTextColor.GREEN),
+            Title.Times.of(Duration.ZERO, fromTicks(3), fromTicks(3))));
   }
 
   protected abstract Component getTitle();
 
   protected Component getSubtitle() {
     if (!spawnRequested) {
-      return TranslatableComponent.of("death.respawn.unconfirmed");
+      return translatable("death.respawn.unconfirmed");
     } else if (options.message != null) {
       return options.message;
     } else {
-      return TranslatableComponent.of("death.respawn.confirmed.waiting");
+      return translatable("death.respawn.confirmed.waiting");
     }
   }
 }

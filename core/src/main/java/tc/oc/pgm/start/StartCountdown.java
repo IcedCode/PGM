@@ -1,12 +1,13 @@
 package tc.oc.pgm.start;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static net.kyori.adventure.text.Component.translatable;
 
 import java.time.Duration;
 import javax.annotation.Nullable;
-import net.kyori.text.Component;
-import net.kyori.text.TranslatableComponent;
-import net.kyori.text.format.TextColor;
+import net.kyori.adventure.bossbar.BossBar;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import tc.oc.pgm.api.match.Match;
 import tc.oc.pgm.teams.Team;
 import tc.oc.pgm.teams.TeamMatchModule;
@@ -25,7 +26,7 @@ public class StartCountdown extends PreMatchCountdown {
   protected final boolean forced;
 
   public StartCountdown(Match match, boolean forced, Duration huddle) {
-    super(match);
+    super(match, BossBar.Color.GREEN);
     this.huddle = checkNotNull(huddle);
     this.forced = forced;
     this.tmm = match.getModule(TeamMatchModule.class);
@@ -37,8 +38,8 @@ public class StartCountdown extends PreMatchCountdown {
 
   @Override
   protected Component formatText() {
-    return TranslatableComponent.of(
-        "countdown.matchStart", TextColor.GREEN, secondsRemaining(TextColor.DARK_RED));
+    return translatable(
+        "countdown.matchStart", NamedTextColor.GREEN, secondsRemaining(NamedTextColor.DARK_RED));
   }
 
   @Override
@@ -72,8 +73,7 @@ public class StartCountdown extends PreMatchCountdown {
       for (Team team : this.tmm.getParticipatingTeams()) {
         if (team.isStacked()) {
           this.balanceWarningSent = true;
-          this.getMatch()
-              .sendWarning(TranslatableComponent.of("match.balanceTeams", team.getName()));
+          getMatch().sendWarning(translatable("match.balanceTeams", team.getName()));
         }
       }
 

@@ -43,7 +43,7 @@ public class ControlPointDefinition extends GoalDefinition {
   private final float timeMultiplier;
 
   // The team that owns the point when the match starts, null for no owner (neutral state) or ffa
-  private final TeamFactory initialOwner;
+  @Nullable private final TeamFactory initialOwner;
 
   // Conditions required for a team to capture:
   public enum CaptureCondition {
@@ -69,6 +69,9 @@ public class ControlPointDefinition extends GoalDefinition {
   // Rate that the owner's score increases, or 0 if the CP does not affect score
   private final float pointsPerSecond;
 
+  // Set number of points given to owner
+  private final float pointsOwner;
+
   // If this is less than +inf, the effective pointsPerSecond will increase over time
   // at an exponential rate, such that it doubles every time this many seconds elapses.
   private final float pointsGrowth;
@@ -90,12 +93,13 @@ public class ControlPointDefinition extends GoalDefinition {
       BlockVector capturableDisplayBeacon,
       Duration timeToCapture,
       float timeMultiplier,
-      TeamFactory initialOwner,
+      @Nullable TeamFactory initialOwner,
       CaptureCondition captureCondition,
       boolean incrementalCapture,
       boolean neutralState,
       boolean permanent,
       float pointsPerSecond,
+      float pointsOwner,
       float pointsGrowth,
       boolean progress) {
 
@@ -115,6 +119,7 @@ public class ControlPointDefinition extends GoalDefinition {
     this.neutralState = neutralState;
     this.permanent = permanent;
     this.pointsPerSecond = pointsPerSecond;
+    this.pointsOwner = pointsOwner;
     this.pointsGrowth = pointsGrowth;
     this.showProgress = progress;
   }
@@ -191,6 +196,7 @@ public class ControlPointDefinition extends GoalDefinition {
     return this.timeMultiplier;
   }
 
+  @Nullable
   public TeamFactory getInitialOwner() {
     return this.initialOwner;
   }
@@ -217,6 +223,10 @@ public class ControlPointDefinition extends GoalDefinition {
 
   public float getPointsPerSecond() {
     return this.pointsPerSecond;
+  }
+
+  public float getPointsOwner() {
+    return this.pointsOwner;
   }
 
   public float getPointsGrowth() {

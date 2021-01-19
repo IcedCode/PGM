@@ -5,7 +5,7 @@ import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.logging.Logger;
-import net.kyori.text.Component;
+import net.kyori.adventure.text.Component;
 import org.jdom2.Document;
 import org.jdom2.Element;
 import tc.oc.pgm.api.map.MapModule;
@@ -26,7 +26,7 @@ import tc.oc.pgm.util.xml.XMLUtils;
 
 public class TNTModule implements MapModule {
   private static final Collection<MapTag> TAGS =
-      ImmutableList.of(MapTag.create("autotnt", "Instant TNT", false, true));
+      ImmutableList.of(new MapTag("autotnt", "Instant TNT", false, true));
   public static final int DEFAULT_DISPENSER_NUKE_LIMIT = 16;
   public static final float DEFAULT_DISPENSER_NUKE_MULTIPLIER = 0.25f;
 

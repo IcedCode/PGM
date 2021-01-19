@@ -1,4 +1,4 @@
-package tc.oc.pgm.community.features;
+package tc.oc.pgm.vanish;
 
 import static net.kyori.adventure.text.Component.text;
 import static net.kyori.adventure.text.Component.translatable;
@@ -29,12 +29,12 @@ import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.metadata.MetadataValue;
 import tc.oc.pgm.api.PGM;
 import tc.oc.pgm.api.Permissions;
+import tc.oc.pgm.api.event.PlayerVanishEvent;
 import tc.oc.pgm.api.match.Match;
 import tc.oc.pgm.api.match.MatchManager;
 import tc.oc.pgm.api.player.MatchPlayer;
 import tc.oc.pgm.api.player.VanishManager;
 import tc.oc.pgm.api.player.event.MatchPlayerAddEvent;
-import tc.oc.pgm.community.events.PlayerVanishEvent;
 import tc.oc.pgm.listeners.PGMListener;
 
 public class VanishManagerImpl implements VanishManager, Listener {
@@ -158,6 +158,8 @@ public class VanishManagerImpl implements VanishManager, Listener {
   @EventHandler(priority = EventPriority.HIGH)
   public void onJoin(PlayerJoinEvent event) {
     MatchPlayer player = matchManager.getPlayer(event.getPlayer());
+    if (!player.getBukkit().hasPermission(Permissions.VANISH)) return;
+
     if (isVanished(player.getId())) { // Player is already vanished
       player.setVanished(true);
     } else if (player
